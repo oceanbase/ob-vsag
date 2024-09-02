@@ -1,0 +1,37 @@
+name: test_build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Log system info
+        run: |
+          echo "CPU:"
+          lscpu
+          echo "Memory:"
+          free -h
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake make
+
+      - name: Configure project
+        run: cmake .
+        env:
+          MAKEFLAGS: "-j$(nproc)"
+
+      - name: Build project
+        run: make -j4
+
+      - name: test project
+        run: ./example/hnsw_example
