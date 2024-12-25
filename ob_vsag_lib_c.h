@@ -54,6 +54,9 @@ extern int add_index_c(VectorIndexPtr& index_handler, float* vector, int64_t* id
 typedef int (*get_index_number_ptr)(VectorIndexPtr& index_handler, int64_t &size);
 extern int get_index_number_c(VectorIndexPtr& index_handler, int64_t &size);
 
+typedef int (*get_index_type_ptr)(VectorIndexPtr& index_handler);
+extern int get_index_type_c(VectorIndexPtr& index_handler);
+
 typedef int (*knn_search_ptr)(VectorIndexPtr& index_handler,float* query_vector, int dim, int64_t topk,
                       const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                        void* invalid);
