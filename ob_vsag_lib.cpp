@@ -256,7 +256,8 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
         bool use_static = false;
         nlohmann::json hnswsq_parameters{{"base_quantization_type", "sq8"}, 
                                             {"max_degree", max_degree}, 
-                                            {"ef_construction", ef_construction}};
+                                            {"ef_construction", ef_construction},
+                                            {"build_thread_count", 1}};
         nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
         if (auto index = vsag::Factory::CreateIndex("hgraph", index_parameters.dump(), vsag_allocator);
             index.has_value()) {
@@ -359,7 +360,7 @@ int get_index_number(VectorIndexPtr& index_handler, int64_t &size) {
 
 int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
-               void* invalid) {
+               void* invalid, bool reverse_filter) {
     vsag::logger::debug("TRACE LOG[knn_search]:");
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     int ret = 0;
@@ -370,8 +371,12 @@ int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_
     }
     SlowTaskTimer t("knn_search");
     roaring::api::roaring64_bitmap_t *bitmap = static_cast<roaring::api::roaring64_bitmap_t*>(invalid);
-    auto filter = [bitmap](int64_t id) -> bool {
-        return roaring::api::roaring64_bitmap_contains(bitmap, id);
+    auto filter = [bitmap, reverse_filter](int64_t id) -> bool {
+        if (!reverse_filter) {
+            return roaring::api::roaring64_bitmap_contains(bitmap, id);
+        } else {
+            return !roaring::api::roaring64_bitmap_contains(bitmap, id);
+        }
     };
     bool owner_set = false;
     nlohmann::json search_parameters;
@@ -474,7 +479,8 @@ int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream) {
     } else {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", "sq8"}, 
                                             {"max_degree", max_degree}, 
-                                            {"ef_construction", ef_construction}};  
+                                            {"ef_construction", ef_construction},
+                                            {"build_thread_count", 1}};  
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};
     }
 
@@ -557,7 +563,8 @@ int deserialize_bin(VectorIndexPtr& index_handler,const std::string dir) {
     } else {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", "sq8"}, 
                                             {"max_degree", max_degree}, 
-                                            {"ef_construction", ef_construction}};  
+                                            {"ef_construction", ef_construction},
+                                            {"build_thread_count", 1}};  
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};
     }
    
@@ -642,8 +649,8 @@ extern int get_index_type_c(VectorIndexPtr& index_handler) {
 }
 
 extern int knn_search_c(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_t topk,
-               const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search, void* invalid) {
-    return knn_search(index_handler, query_vector, dim, topk, dist, ids, result_size, ef_search, invalid);
+               const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search, void* invalid, bool reverse_filter) {
+    return knn_search(index_handler, query_vector, dim, topk, dist, ids, result_size, ef_search, invalid, reverse_filter);
 }
 
 extern int serialize_c(VectorIndexPtr& index_handler, const std::string dir) {

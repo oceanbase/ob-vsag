@@ -229,7 +229,7 @@ int example_so() {
 
     int ret_knn_search = knn_search_c(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, r1);
+                                                 100, r1, false);
 
     //serialize/deserialize
     obvectorlib::serialize_ptr serialize_c;

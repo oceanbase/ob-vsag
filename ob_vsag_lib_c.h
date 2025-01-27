@@ -59,10 +59,10 @@ extern int get_index_type_c(VectorIndexPtr& index_handler);
 
 typedef int (*knn_search_ptr)(VectorIndexPtr& index_handler,float* query_vector, int dim, int64_t topk,
                       const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
-                       void* invalid);
+                       void* invalid, bool reverse_filter);
 extern int knn_search_c(VectorIndexPtr& index_handler,float* query_vector, int dim, int64_t topk,
                       const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
-                      void* invalid = NULL);
+                      void* invalid = NULL, bool reverse_filter = false);
 
 typedef int (*serialize_ptr)(VectorIndexPtr& index_handler, const std::string dir);          
 extern int serialize_c(VectorIndexPtr& index_handler, const std::string dir);
