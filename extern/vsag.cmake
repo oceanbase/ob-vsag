@@ -4,8 +4,8 @@ include (FetchContent)
 #set(vsag_BINARY_DIR ${CMAKE_BINARY_DIR}/_deps/vsag-src/)
 FetchContent_Declare(
   vsag
-  URL https://github.com/antgroup/vsag/archive/refs/tags/v0.12.0.tar.gz
-  URL_HASH MD5=3387d014cf48e6ba65f1219841d427ad
+  URL https://vsagcache.oss-rg-china-mainland.aliyuncs.com/vsag/v0.13.1.tar.gz
+  URL_HASH MD5=3801d7eb21233e9f2345a698ee2b8e87
                 DOWNLOAD_NO_PROGRESS 0
                 INACTIVITY_TIMEOUT 5
                 TIMEOUT 120

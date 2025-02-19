@@ -51,9 +51,10 @@ extern int build_index(VectorIndexPtr& index_handler, float* vector_list, int64_
 extern int add_index(VectorIndexPtr& index_handler, float* vector, int64_t* ids, int dim, int size);
 extern int get_index_number(VectorIndexPtr& index_handler, int64_t &size);
 extern int get_index_type(VectorIndexPtr& index_handler);
+extern int cal_distance_by_id(VectorIndexPtr& index_handler, const float* vector, const int64_t* ids, int64_t count, const float *&distances);
 extern int knn_search(VectorIndexPtr& index_handler,float* query_vector, int dim, int64_t topk,
                       const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
-                       void* invalid = NULL, bool reverse_filter = false);
+                      void* invalid = NULL, bool reverse_filter = false, float valid_ratio = 1);
 extern int serialize(VectorIndexPtr& index_handler, const std::string dir);
 extern int deserialize_bin(VectorIndexPtr& index_handler, const std::string dir);
 extern int fserialize(VectorIndexPtr& index_handler, std::ostream& out_stream);

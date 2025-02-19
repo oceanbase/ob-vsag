@@ -15,7 +15,7 @@ int64_t example() {
     bool is_init = obvectorlib::is_init();
     //set_log_level(1);
     obvectorlib::VectorIndexPtr index_handler = NULL;
-    int dim = 128;
+    int dim = 1536;
     int max_degree = 16;
     int ef_search = 200;
     int ef_construction = 100;
@@ -28,7 +28,7 @@ int64_t example() {
     int ret_create_index = obvectorlib::create_index(index_handler,
                                                      obvectorlib::HNSW_TYPE,
                                                      DATATYPE_FLOAT32,
-                                                     METRIC_IP,
+                                                     METRIC_L2,
                                                      dim,
                                                      max_degree,
                                                      ef_construction,
@@ -36,14 +36,14 @@ int64_t example() {
                                                      &default_allocator);
    
     if (ret_create_index!=0) return 333;
-    int num_vectors = 10;
+    int num_vectors = 10000;
     auto ids = new int64_t[num_vectors];
     auto vectors = new float[dim * num_vectors];
     std::mt19937 rng;
     rng.seed(47);
     std::uniform_real_distribution<> distrib_real;
     for (int64_t i = 0; i < num_vectors; ++i) {
-        ids[i] = i*2;
+        ids[i] = i;
     }
     for (int64_t i = 0; i < dim * num_vectors; ++i) {
         vectors[i] = distrib_real(rng);
@@ -54,16 +54,16 @@ int64_t example() {
     int ret_get_element = obvectorlib::get_index_number(index_handler, num_size);
     std::cout<<"after add index, size is "<<num_size<<" " <<ret_get_element<<std::endl;
 
-    int inc_num = 1000;
+    int inc_num = 10000;
     auto inc = new float[dim * inc_num];
     for (int64_t i = 0; i < dim * inc_num; ++i) {
         inc[i] = distrib_real(rng);
     }
     auto ids2 = new int64_t[inc_num];
     for (int64_t i = 0; i < inc_num; ++i) {
-        ids2[i] = i*2+1;
+        ids2[i] = i + num_vectors;
     }
-    
+ 
     int ret_add_index = obvectorlib::add_index(index_handler, inc, ids2, dim,inc_num);
     ret_get_element = obvectorlib::get_index_number(index_handler, num_size);
     std::cout<<"after add index, size is "<<num_size<<" " <<ret_add_index<<std::endl;
@@ -74,21 +74,22 @@ int64_t example() {
 
     roaring::api::roaring64_bitmap_t* r1 = roaring::api::roaring64_bitmap_create();
 
-    roaring::api::roaring64_bitmap_add(r1, 18);
-    roaring::api::roaring64_bitmap_add(r1, 1169);
-    roaring::api::roaring64_bitmap_add(r1, 1285);
-
     int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, r1);
-    const std::string dir = "./";
-    int ret_serialize_single = obvectorlib::serialize(index_handler,dir);
-    int ret_deserilize_single_bin = 
-                    obvectorlib::deserialize_bin(index_handler,dir);
- ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
+                                                 100, r1, false, 1);
+    
+    roaring64_bitmap_add_range(r1, 0, 19800);
+
+    ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, r1);
-     obvectorlib::delete_index(index_handler);
+                                                 100, r1, false, 0.01);
+    const float *distances;
+    ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
+    for (int i = 0; i < result_size; i++) {
+        std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
+        std::cout << "calres: " << result_ids[i] << " " << distances[i] << std::endl;
+    }
+    obvectorlib::delete_index(index_handler);
     free(test_ptr);
     return 0;
 }
@@ -303,6 +304,7 @@ int64_t hnswsq_example() {
     roaring::api::roaring64_bitmap_add(r1, 18);
     roaring::api::roaring64_bitmap_add(r1, 1169);
     roaring::api::roaring64_bitmap_add(r1, 1285);
+    std::cout << "before search" << std::endl;
 
     int ret_knn_search = obvectorlib::knn_search(index_handler, query_vector, dim, 10,
                                                  result_dist,result_ids,result_size, 
@@ -321,16 +323,16 @@ int64_t hnswsq_example() {
         ids2[i] = i + num_vectors*100;
     }
 
-    const std::string dir = "./";
-    int ret_serialize_single = obvectorlib::serialize(index_handler,dir);
-    int ret_deserilize_single_bin = 
-                    obvectorlib::deserialize_bin(index_handler,dir);
-    ret_knn_search = obvectorlib::knn_search(index_handler, query_vector, dim, 10,
-                                                 result_dist,result_ids,result_size, 
-                                                 100, r1);
-    for (int i = 0; i < result_size; i++) {
-        std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
-    }
+    // const std::string dir = "./";
+    // int ret_serialize_single = obvectorlib::serialize(index_handler,dir);
+    // int ret_deserilize_single_bin = 
+    //                 obvectorlib::deserialize_bin(index_handler,dir);
+    // ret_knn_search = obvectorlib::knn_search(index_handler, query_vector, dim, 10,
+    //                                              result_dist,result_ids,result_size, 
+    //                                              100, r1);
+    // for (int i = 0; i < result_size; i++) {
+    //     std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
+    // }
     obvectorlib::delete_index(index_handler);
     free(test_ptr);
     return 0;
@@ -340,6 +342,6 @@ int
 main() {
     hnswsq_example();
     example();
-    example_so();
+    //example_so();
     return 0;
 }
