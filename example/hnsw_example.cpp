@@ -10,6 +10,85 @@
 #include <stdlib.h>
 
 
+// int64_t example_search_next() {
+//     std::cout<<"test hnsw_example: "<<std::endl;
+//     bool is_init = obvectorlib::is_init();
+//     //set_log_level(1);
+//     obvectorlib::VectorIndexPtr index_handler = NULL;
+//     int dim = 1536;
+//     int max_degree = 16;
+//     int ef_search = 100;
+//     int ef_construction = 100;
+//     DefaultAllocator default_allocator;
+//     const char* const METRIC_L2 = "l2";
+//     const char* const METRIC_IP = "ip";
+
+//     const char* const DATATYPE_FLOAT32 = "float32";
+//     void * test_ptr = default_allocator.Allocate(10);
+//     int ret_create_index = obvectorlib::create_index(index_handler,
+//                                                      obvectorlib::HNSW_TYPE,
+//                                                      DATATYPE_FLOAT32,
+//                                                      METRIC_L2,
+//                                                      dim,
+//                                                      max_degree,
+//                                                      ef_construction,
+//                                                      ef_search,
+//                                                      &default_allocator);
+   
+//     if (ret_create_index!=0) return 333;
+//     int num_vectors = 10000;
+//     auto ids = new int64_t[num_vectors];
+//     auto vectors = new float[dim * num_vectors];
+//     std::mt19937 rng;
+//     rng.seed(47);
+//     std::uniform_real_distribution<> distrib_real;
+//     for (int64_t i = 0; i < num_vectors; ++i) {
+//         ids[i] = i;
+//     }
+//     for (int64_t i = 0; i < dim * num_vectors; ++i) {
+//         vectors[i] = distrib_real(rng);
+//     }
+//     int ret_build_index = obvectorlib::build_index(index_handler, vectors, ids, dim, num_vectors);
+
+//     const float* result_dist;
+//     const int64_t* result_ids;
+//     int64_t result_size = 0;
+//     std::shared_ptr<obvectorlib::ObDiscarded> discard = std::make_shared<obvectorlib::ObDiscarded>(ef_search);
+//     void *dis_ptr = static_cast<void*>(&discard);
+
+//     roaring::api::roaring64_bitmap_t* r1 = roaring::api::roaring64_bitmap_create();
+//     auto query_vectors = new float[dim];
+//     for (int64_t i = 0; i < dim; ++i) {
+//         query_vectors[i] = distrib_real(rng);
+//     }
+
+//     int ret_knn_search = obvectorlib::knn_search(index_handler, query_vectors, dim, 10,
+//                                                  result_dist,result_ids,result_size, 
+//                                                  100, r1, false, 1, dis_ptr);
+//     const float *distances;
+//     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
+//     for (int i = 0; i < result_size; i++) {
+//         std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
+//         std::cout << "calres: " << result_ids[i] << " " << distances[i] << std::endl;
+//     }
+//     discard->ShowDiscard();
+//     std::cout << "--------2nd-------" << std::endl;
+
+//     ret_knn_search = obvectorlib::knn_search_next(index_handler, query_vectors, dim, 10,
+//                                                  result_dist,result_ids,result_size, 
+//                                                  100, r1, false, 1, dis_ptr);
+//     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, query_vectors, result_ids, result_size, distances);
+//     for (int i = 0; i < result_size; i++) {
+//         std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
+//         std::cout << "calres: " << result_ids[i] << " " << distances[i] << std::endl;
+//     }
+//     discard->ShowDiscard();
+//     obvectorlib::delete_index(index_handler);
+//     free(test_ptr);
+//     return 0;
+// }
+
+/*
 int64_t example() {
     std::cout<<"test hnsw_example: "<<std::endl;
     bool is_init = obvectorlib::is_init();
@@ -337,11 +416,13 @@ int64_t hnswsq_example() {
     free(test_ptr);
     return 0;
 }
+*/
 
 int
 main() {
-    hnswsq_example();
-    example();
+    //hnswsq_example();
+    //example();
     //example_so();
+    //example_search_next();
     return 0;
 }

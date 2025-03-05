@@ -49,8 +49,11 @@ SlowTaskTimer::~SlowTaskTimer() {
 class ObVasgFilter : public vsag::Filter
 {
 public:
-    ObVasgFilter(float valid_ratio, const std::function<bool(int64_t)>& fallback_func) 
-        : valid_ratio_(valid_ratio), fallback_func_(fallback_func) 
+    ObVasgFilter(float valid_ratio, 
+                 const std::function<bool(int64_t)>& fallback_func,
+                 const std::function<void(int64_t)>& add_fallback_func) 
+        : valid_ratio_(valid_ratio), fallback_func_(fallback_func),
+          add_fallback_func_(add_fallback_func)
     {};
 
     ~ObVasgFilter() {}
@@ -63,9 +66,14 @@ public:
         return valid_ratio_;
     }
 
+    void EntryPoint(int64_t id) const override {
+        add_fallback_func_(id);
+    }
+
 private:
     float valid_ratio_;
     std::function<bool(int64_t)> fallback_func_{nullptr};
+    std::function<void(int64_t)> add_fallback_func_{nullptr};
 };
 
 class HnswIndexHandler
@@ -104,7 +112,9 @@ public:
                 const std::string& parameters,
                 const float*& dist, const int64_t*& ids, int64_t &result_size,
                 float valid_ratio, int index_type,
-                const std::function<bool(int64_t)>& filter);
+                const std::function<bool(int64_t)>& filter,
+                const std::function<void(int64_t)>& add_filter,
+                void *discard = nullptr);
   std::shared_ptr<vsag::Index>& get_index() {return index_;}
   void set_index(std::shared_ptr<vsag::Index> hnsw) {index_ = hnsw;}
   vsag::Allocator* get_allocator() {return allocator_;}
@@ -178,13 +188,19 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
                const std::string& parameters,
                const float*& dist, const int64_t*& ids, int64_t &result_size,
                float valid_ratio, int index_type,
-               const std::function<bool(int64_t)>& filter) {
+               const std::function<bool(int64_t)>& filter,
+               const std::function<void(int64_t)>& add_filter,
+               void *discard) {
     vsag::logger::debug("  search_parameters:{}", parameters);
     vsag::logger::debug("  topk:{}", topk);
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
-    auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter);
+    auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter, add_filter);
+    //std::shared_ptr<obvectorlib::ObDiscarded> vsag_discard = *static_cast<std::shared_ptr<obvectorlib::ObDiscarded>*>(discard);
+    vsag::DiscardNode *dis_node = static_cast<vsag::DiscardNode*>(discard);
+    std::shared_ptr<vsag::DiscardNode> dis_node_ptr(nullptr);
+    auto aliasPtr = std::shared_ptr<vsag::DiscardNode>(dis_node_ptr, dis_node);
     auto result = index_type == HNSW_TYPE ? 
-                    index_->KnnSearch(query, topk, parameters, vsag_filter) : 
+                    index_->KnnSearch(query, topk, parameters, vsag_filter, aliasPtr) : 
                     index_->KnnSearch(query, topk, parameters, filter);
     if (result.has_value()) {
         //result的生命周期
@@ -421,7 +437,7 @@ int cal_distance_by_id(VectorIndexPtr& index_handler,
 
 int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
-               void* invalid, bool reverse_filter, float valid_ratio) {
+               void* invalid, bool reverse_filter, float valid_ratio, void *discard) {
     vsag::logger::debug("TRACE LOG[knn_search]:");
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     int ret = 0;
@@ -439,6 +455,11 @@ int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_
             return !roaring::api::roaring64_bitmap_contains(bitmap, id);
         }
     };
+
+    auto add_filter = [bitmap](int64_t id) -> void {
+        return roaring::api::roaring64_bitmap_add(bitmap, (uint64_t)id);
+    };
+
     bool owner_set = false;
     nlohmann::json search_parameters;
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
@@ -450,7 +471,7 @@ int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_
     }
     auto query = vsag::Dataset::Make();
     query->NumElements(1)->Dim(dim)->Float32Vectors(query_vector)->Owner(false);
-    ret = hnsw->knn_search(query, topk, search_parameters.dump(), dist, ids, result_size, valid_ratio, hnsw->get_index_type(), filter);
+    ret = hnsw->knn_search(query, topk, search_parameters.dump(), dist, ids, result_size, valid_ratio, hnsw->get_index_type(), filter, add_filter, discard);
     if (ret != 0) {
         vsag::logger::error("   knn search error happend, ret={}", ret);
     }
