@@ -323,6 +323,37 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
             error = index.error().type;
             vsag::logger::debug("   fail to create hnsw index , index parameter:{}", index_parameters.dump());
         }
+    } else if (index_type == HNSW_BQ_TYPE) {
+        // create hnsw sq index
+        std::shared_ptr<vsag::Index> hnsw;
+        bool use_static = false;
+        nlohmann::json hnswbq_parameters{{"base_quantization_type", "rabitq"}, 
+                                            {"max_degree", max_degree}, 
+                                            {"ef_construction", ef_construction},
+                                            {"build_thread_count", 1}};
+        nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}}; 
+        if (auto index = vsag::Factory::CreateIndex("hgraph", index_parameters.dump(), vsag_allocator);
+            index.has_value()) {
+            hnsw = index.value();
+            HnswIndexHandler* hnsw_index = new HnswIndexHandler(true,
+                                                                false,
+                                                                use_static,
+                                                                dtype,
+                                                                metric,
+                                                                max_degree,
+                                                                ef_construction,
+                                                                ef_search,
+                                                                dim,
+                                                                index_type,
+                                                                hnsw,
+                                                                vsag_allocator);
+            index_handler = static_cast<VectorIndexPtr>(hnsw_index);
+            vsag::logger::debug("   success to create hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(), (void*)vsag_allocator);
+            return 0;
+        } else {
+            error = index.error().type;
+            vsag::logger::debug("   fail to create hnsw index , index parameter:{}", index_parameters.dump());
+        }
     } else if (!is_support) {
         error = vsag::ErrorType::UNSUPPORTED_INDEX;
         vsag::logger::debug("   fail to create hnsw index , index type not supported:{}", static_cast<int>(index_type));
@@ -442,7 +473,8 @@ int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_
     bool owner_set = false;
     nlohmann::json search_parameters;
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
-    if (hnsw->get_index_type() == HNSW_SQ_TYPE) {
+    const IndexType index_type =static_cast<IndexType>(hnsw->get_index_type());
+    if (HNSW_SQ_TYPE == index_type || HNSW_BQ_TYPE == index_type) {
         search_parameters = {{"hgraph", {{"ef_search", ef_search}}},};
         owner_set = true;
     } else {
@@ -531,18 +563,24 @@ int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream) {
     int dim = hnsw->get_dim();
     int index_type = hnsw->get_index_type();
     nlohmann::json index_parameters;
-    if (hnsw->get_index_type() == HNSW_TYPE) {
+    if (HNSW_TYPE == index_type) {
         nlohmann::json hnsw_parameters{{"max_degree", max_degree},
                                     {"ef_construction", ef_construction},
                                     {"ef_search", ef_search},
                                     {"use_static", use_static}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"hnsw", hnsw_parameters}};
-    } else {
+    } else if (HNSW_SQ_TYPE == index_type) {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", "sq8"}, 
                                             {"max_degree", max_degree}, 
                                             {"ef_construction", ef_construction},
                                             {"build_thread_count", 1}};  
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};
+    } else if (HNSW_BQ_TYPE == index_type) {
+        nlohmann::json hnswbq_parameters{{"base_quantization_type", "rabitq"}, 
+                                            {"max_degree", max_degree}, 
+                                            {"ef_construction", ef_construction},
+                                            {"build_thread_count", 1}};  
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}};
     }
 
     vsag::logger::debug("   Deserilize hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(),(void*)hnsw->get_allocator());
@@ -621,12 +659,18 @@ int deserialize_bin(VectorIndexPtr& index_handler,const std::string dir) {
                                     {"ef_search", ef_search},
                                     {"use_static", use_static}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"hnsw", hnsw_parameters}};
-    } else {
+    } else if (index_type == HNSW_SQ_TYPE) {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", "sq8"}, 
                                             {"max_degree", max_degree}, 
                                             {"ef_construction", ef_construction},
                                             {"build_thread_count", 1}};  
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};
+     } else if (index_type == HNSW_BQ_TYPE) {
+        nlohmann::json hnswbq_parameters{{"base_quantization_type", "rabitq"}, 
+                                            {"max_degree", max_degree}, 
+                                            {"ef_construction", ef_construction},
+                                            {"build_thread_count", 1}};  
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}};
     }
    
     vsag::logger::debug("   Deserilize hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(),(void*)hnsw->get_allocator());
