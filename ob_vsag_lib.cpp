@@ -100,6 +100,7 @@ public:
   int get_index_number();
   int add_index(const vsag::DatasetPtr& incremental);
   int cal_distance_by_id(const float* vector, const int64_t* ids, int64_t count, const float*& dist);
+  int get_vid_bound(int64_t &min_vid, int64_t &max_vid);
   int knn_search(const vsag::DatasetPtr& query, int64_t topk,
                 const std::string& parameters,
                 const float*& dist, const int64_t*& ids, int64_t &result_size,
@@ -172,6 +173,12 @@ int HnswIndexHandler::cal_distance_by_id(const float* vector, const int64_t* ids
         error = result.error().type;
     }
     return static_cast<int>(error);
+}
+
+int HnswIndexHandler::get_vid_bound(int64_t &min_vid, int64_t &max_vid)
+{
+    auto result = index_->GetMinAndMaxId(min_vid, max_vid);
+    return 0;
 }
 
 int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
@@ -419,6 +426,21 @@ int cal_distance_by_id(VectorIndexPtr& index_handler,
     return ret;
 }
 
+extern int get_vid_bound(VectorIndexPtr& index_handler, int64_t &min_vid, int64_t &max_vid)
+{
+    vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
+    if (index_handler == nullptr) {
+        vsag::logger::debug("   null pointer addr, index_handler:{}", (void*)index_handler);
+        return static_cast<int>(error);
+    }
+    HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler); 
+    int ret = hnsw->get_vid_bound(min_vid, max_vid);
+    if (ret != 0) {
+        vsag::logger::error("   knn search error happend, ret={}", ret);
+    }
+    return ret;
+}
+
 int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                void* invalid, bool reverse_filter, float valid_ratio) {
@@ -431,12 +453,12 @@ int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_
         return static_cast<int>(error);
     }
     SlowTaskTimer t("knn_search");
-    roaring::api::roaring64_bitmap_t *bitmap = static_cast<roaring::api::roaring64_bitmap_t*>(invalid);
+    FilterInterface *bitmap = static_cast<FilterInterface*>(invalid);
     auto filter = [bitmap, reverse_filter](int64_t id) -> bool {
         if (!reverse_filter) {
-            return roaring::api::roaring64_bitmap_contains(bitmap, id);
+            return bitmap->test(id);
         } else {
-            return !roaring::api::roaring64_bitmap_contains(bitmap, id);
+            return !(bitmap->test(id));
         }
     };
     bool owner_set = false;
