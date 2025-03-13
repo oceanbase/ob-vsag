@@ -468,7 +468,7 @@ int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_
         search_parameters = {{"hgraph", {{"ef_search", ef_search}}},};
         owner_set = true;
     } else {
-        search_parameters = {{"hnsw", {{"ef_search", ef_search}}},};
+        search_parameters = {{"hnsw", {{"ef_search", ef_search}, {"skip_ratio", 0.7f}}},};
     }
     auto query = vsag::Dataset::Make();
     query->NumElements(1)->Dim(dim)->Float32Vectors(query_vector)->Owner(false);
