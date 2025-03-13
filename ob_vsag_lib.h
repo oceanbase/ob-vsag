@@ -13,6 +13,7 @@ enum IndexType {
   INVALID_INDEX_TYPE = -1,
   HNSW_TYPE = 0,
   HNSW_SQ_TYPE = 1,
+  HGRAPH_TYPE = 5,
   MAX_INDEX_TYPE
 };
 
@@ -51,15 +52,17 @@ extern bool is_supported_index(IndexType index_type);
 extern int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                         const char* dtype,
                         const char* metric,int dim,
-                        int max_degree, int ef_construction, int ef_search, void* allocator = NULL);
-extern int build_index(VectorIndexPtr& index_handler, float* vector_list, int64_t* ids, int dim, int size);
-extern int add_index(VectorIndexPtr& index_handler, float* vector, int64_t* ids, int dim, int size);
+                        int max_degree, int ef_construction, int ef_search, void* allocator = NULL,
+                        int extra_info_size = 0);
+extern int build_index(VectorIndexPtr& index_handler, float* vector_list, int64_t* ids, int dim, int size, char *extra_infos = nullptr);
+extern int add_index(VectorIndexPtr& index_handler, float* vector, int64_t* ids, int dim, int size, char *extra_info = nullptr);
 extern int get_index_number(VectorIndexPtr& index_handler, int64_t &size);
 extern int get_index_type(VectorIndexPtr& index_handler);
 extern int cal_distance_by_id(VectorIndexPtr& index_handler, const float* vector, const int64_t* ids, int64_t count, const float *&distances);
 extern int get_vid_bound(VectorIndexPtr& index_handler, int64_t &min_vid, int64_t &max_vid);
 extern int knn_search(VectorIndexPtr& index_handler,float* query_vector, int dim, int64_t topk,
                       const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
+                      bool need_extra_info, const char*& extra_infos,
                       void* invalid = NULL, bool reverse_filter = false, float valid_ratio = 1);
 extern int serialize(VectorIndexPtr& index_handler, const std::string dir);
 extern int deserialize_bin(VectorIndexPtr& index_handler, const std::string dir);
