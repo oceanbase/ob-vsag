@@ -9,6 +9,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+class TestFilter : public obvectorlib::FilterInterface
+{
+public:
+    TestFilter(roaring::api::roaring64_bitmap_t *bitmap) : bitmap_(bitmap) {}
+    ~TestFilter() {}
+    bool test(int64_t id) override { return roaring::api::roaring64_bitmap_contains(bitmap_, id); }
+public:
+    roaring::api::roaring64_bitmap_t* bitmap_;
+};
 
 int64_t example() {
     std::cout<<"test hnsw_example: "<<std::endl;
@@ -73,16 +82,17 @@ int64_t example() {
     int64_t result_size = 0;
 
     roaring::api::roaring64_bitmap_t* r1 = roaring::api::roaring64_bitmap_create();
+    TestFilter testfilter(r1);
     const char *extra_info = nullptr;
     int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false/*need_extra_info*/, extra_info, r1, false, 1);
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, 1);
     
     roaring64_bitmap_add_range(r1, 0, 19800);
 
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false/*need_extra_info*/, extra_info, r1, false, 0.01);
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, 0.01);
     const float *distances;
     // ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
     for (int i = 0; i < result_size; i++) {
@@ -305,10 +315,11 @@ int64_t hnswsq_example() {
     roaring::api::roaring64_bitmap_add(r1, 1169);
     roaring::api::roaring64_bitmap_add(r1, 1285);
     std::cout << "before search" << std::endl;
+    TestFilter testfilter(r1);
     const char *extra_info = nullptr;
     int ret_knn_search = obvectorlib::knn_search(index_handler, query_vector, dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false/*need_extra_info*/, extra_info, r1);
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter);
     
     for (int i = 0; i < result_size; i++) {
         std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;

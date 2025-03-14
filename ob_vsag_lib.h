@@ -16,6 +16,11 @@ enum IndexType {
   HGRAPH_TYPE = 5,
   MAX_INDEX_TYPE
 };
+
+class FilterInterface {
+public:
+  virtual bool test(int64_t id) = 0;
+};
 /**
  *   * Get the version based on git revision
  *     * 
@@ -54,6 +59,7 @@ extern int add_index(VectorIndexPtr& index_handler, float* vector, int64_t* ids,
 extern int get_index_number(VectorIndexPtr& index_handler, int64_t &size);
 extern int get_index_type(VectorIndexPtr& index_handler);
 extern int cal_distance_by_id(VectorIndexPtr& index_handler, const float* vector, const int64_t* ids, int64_t count, const float *&distances);
+extern int get_vid_bound(VectorIndexPtr& index_handler, int64_t &min_vid, int64_t &max_vid);
 extern int knn_search(VectorIndexPtr& index_handler,float* query_vector, int dim, int64_t topk,
                       const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                       bool need_extra_info, const char*& extra_infos,
