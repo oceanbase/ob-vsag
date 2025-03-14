@@ -11,6 +11,7 @@
 #include "vsag/factory.h"
 #include "vsag/constants.h"
 #include "vsag/filter.h"
+#include "vsag/iterator_context.h"
 
 #include "default_logger.h"
 #include "vsag/logger.h"
@@ -104,7 +105,8 @@ public:
                 const std::string& parameters,
                 const float*& dist, const int64_t*& ids, int64_t &result_size,
                 float valid_ratio, int index_type,
-                const std::function<bool(int64_t)>& filter);
+                const std::function<bool(int64_t)>& filter,
+                void *iter_ctx = nullptr);
   std::shared_ptr<vsag::Index>& get_index() {return index_;}
   void set_index(std::shared_ptr<vsag::Index> hnsw) {index_ = hnsw;}
   vsag::Allocator* get_allocator() {return allocator_;}
@@ -178,14 +180,23 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
                const std::string& parameters,
                const float*& dist, const int64_t*& ids, int64_t &result_size,
                float valid_ratio, int index_type,
-               const std::function<bool(int64_t)>& filter) {
+               const std::function<bool(int64_t)>& filter,
+               void *iter_ctx) {
     vsag::logger::debug("  search_parameters:{}", parameters);
     vsag::logger::debug("  topk:{}", topk);
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter);
-    auto result = index_type == HNSW_TYPE ? 
+    tl::expected<std::shared_ptr<vsag::Dataset>, vsag::Error> result;
+    if (iter_ctx == nullptr) {
+        result = index_type == HNSW_TYPE ? 
                     index_->KnnSearch(query, topk, parameters, vsag_filter) : 
                     index_->KnnSearch(query, topk, parameters, filter);
+    } else {
+        vsag::IteratorContextPtr* input_iter = static_cast<vsag::IteratorContextPtr*>(iter_ctx);
+        result = index_type == HNSW_TYPE ? 
+                    index_->KnnSearch(query, topk, parameters, vsag_filter, input_iter) : 
+                    index_->KnnSearch(query, topk, parameters, vsag_filter, input_iter);
+    }
     if (result.has_value()) {
         //result的生命周期
         result.value()->Owner(false);
@@ -421,7 +432,7 @@ int cal_distance_by_id(VectorIndexPtr& index_handler,
 
 int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
-               void* invalid, bool reverse_filter, float valid_ratio) {
+               void* invalid, bool reverse_filter, float valid_ratio, void *iter_ctx) {
     vsag::logger::debug("TRACE LOG[knn_search]:");
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     int ret = 0;
@@ -450,7 +461,7 @@ int knn_search(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_
     }
     auto query = vsag::Dataset::Make();
     query->NumElements(1)->Dim(dim)->Float32Vectors(query_vector)->Owner(false);
-    ret = hnsw->knn_search(query, topk, search_parameters.dump(), dist, ids, result_size, valid_ratio, hnsw->get_index_type(), filter);
+    ret = hnsw->knn_search(query, topk, search_parameters.dump(), dist, ids, result_size, valid_ratio, hnsw->get_index_type(), filter, iter_ctx);
     if (ret != 0) {
         vsag::logger::error("   knn search error happend, ret={}", ret);
     }
