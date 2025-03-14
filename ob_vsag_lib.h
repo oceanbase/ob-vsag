@@ -13,7 +13,12 @@ enum IndexType {
   INVALID_INDEX_TYPE = -1,
   HNSW_TYPE = 0,
   HNSW_SQ_TYPE = 1,
-  HGRAPH_TYPE = 5,
+  // Keep it the same as ObVectorIndexAlgorithmType
+  // IVF_FLAT_TYPE,
+  // IVF_SQ8_TYPE,
+  // IVF_PQ_TYPE,
+  HNSW_BQ_TYPE = 5,
+  HGRAPH_TYPE = 6,
   MAX_INDEX_TYPE
 };
 

@@ -275,6 +275,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
     SlowTaskTimer t("create_index");
     vsag::Allocator* vsag_allocator = NULL;
     bool is_support = is_supported_index(index_type);
+    const char *base_quantization_type = (index_type == HNSW_SQ_TYPE) ? "sq8" : ((index_type == HNSW_BQ_TYPE) ? "rabitq" : "fp32");
     vsag::logger::debug("   index type : {}, is_supported : {}", static_cast<int>(index_type), is_support);
     if (allocator == NULL) {
         vsag_allocator = NULL;
@@ -320,12 +321,47 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
         // create hnsw sq index
         std::shared_ptr<vsag::Index> hnsw;
         bool use_static = false;
-        const char *base_quantization_type = (index_type == HNSW_SQ_TYPE) ? "sq8" : "fp32";
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
                                             {"max_degree", max_degree}, 
                                             {"ef_construction", ef_construction},
                                             {"build_thread_count", 1},
                                             {"extra_info_size", extra_info_size}};
+        nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
+        if (auto index = vsag::Factory::CreateIndex("hgraph", index_parameters.dump(), vsag_allocator);
+            index.has_value()) {
+            hnsw = index.value();
+            HnswIndexHandler* hnsw_index = new HnswIndexHandler(true,
+                                                                false,
+                                                                use_static,
+                                                                dtype,
+                                                                metric,
+                                                                max_degree,
+                                                                ef_construction,
+                                                                ef_search,
+                                                                dim,
+                                                                index_type,
+                                                                hnsw,
+                                                                vsag_allocator,
+                                                                extra_info_size);
+            index_handler = static_cast<VectorIndexPtr>(hnsw_index);
+            vsag::logger::debug("   success to create hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(), (void*)vsag_allocator);
+            return 0;
+        } else {
+            error = index.error().type;
+            vsag::logger::debug("   fail to create hnsw index , index parameter:{}", index_parameters.dump());
+        }
+    } else if (index_type == HNSW_BQ_TYPE) {
+        // create hnsw sq index
+        std::shared_ptr<vsag::Index> hnsw;
+        bool use_static = false;
+        nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
+                                            {"max_degree", max_degree}, 
+                                            {"ef_construction", ef_construction},
+                                            {"build_thread_count", 1},
+                                            {"extra_info_size", extra_info_size},
+                                            {"use_reorder", true},
+                                            {"precise_quantization_type", "fp32"},
+                                            {"precise_io_type", "block_memory_io"}}; 
         nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
         if (auto index = vsag::Factory::CreateIndex("hgraph", index_parameters.dump(), vsag_allocator);
             index.has_value()) {
@@ -480,18 +516,22 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
         return static_cast<int>(error);
     }
     SlowTaskTimer t("knn_search");
-    FilterInterface *bitmap = static_cast<FilterInterface*>(invalid);
-    auto filter = [bitmap, reverse_filter](int64_t id) -> bool {
-        if (!reverse_filter) {
-            return bitmap->test(id);
-        } else {
-            return !(bitmap->test(id));
-        }
-    };
+    // TODO
+    // revert and comment this for compile
+    roaring::api::roaring64_bitmap_t *bitmap = static_cast<roaring::api::roaring64_bitmap_t*>(invalid);
+    // FilterInterface *bitmap = static_cast<FilterInterface*>(invalid);
+    // auto filter = [bitmap, reverse_filter](int64_t id) -> bool {
+    //     if (!reverse_filter) {
+    //         return bitmap->test(id);
+    //     } else {
+    //         return !(bitmap->test(id));
+    //     }
+    // };
     bool owner_set = false;
     nlohmann::json search_parameters;
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
-    if (hnsw->get_index_type() == HNSW_SQ_TYPE || hnsw->get_index_type() == HGRAPH_TYPE) {
+    const IndexType index_type =static_cast<IndexType>(hnsw->get_index_type());
+    if (HNSW_SQ_TYPE == index_type || HNSW_BQ_TYPE == index_type || HGRAPH_TYPE == index_type) {
         search_parameters = {{"hgraph", {{"ef_search", ef_search}}},};
         owner_set = true;
     } else {
@@ -500,7 +540,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
     auto query = vsag::Dataset::Make();
     query->NumElements(1)->Dim(dim)->Float32Vectors(query_vector)->Owner(false);
     ret = hnsw->knn_search(
-        query, topk, search_parameters.dump(), dist, ids, result_size, valid_ratio, hnsw->get_index_type(),
+        query, topk, search_parameters.dump(), dist, ids, result_size, valid_ratio, index_type,
         bitmap, reverse_filter,
         need_extra_info, extra_infos);
     if (ret != 0) {
@@ -583,14 +623,24 @@ int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream) {
     int dim = hnsw->get_dim();
     int index_type = hnsw->get_index_type();
     uint64_t extra_info_size = hnsw->get_extra_info_size();
-    const char *base_quantization_type = (index_type == HNSW_SQ_TYPE) ? "sq8" : "fp32";
+    const char *base_quantization_type = (index_type == HNSW_SQ_TYPE) ? "sq8" : ((index_type == HNSW_BQ_TYPE) ? "rabitq" : "fp32");
     nlohmann::json index_parameters;
-    if (hnsw->get_index_type() == HNSW_TYPE) {
+    if (HNSW_TYPE == index_type) {
         nlohmann::json hnsw_parameters{{"max_degree", max_degree},
                                     {"ef_construction", ef_construction},
                                     {"ef_search", ef_search},
                                     {"use_static", use_static}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"hnsw", hnsw_parameters}};
+    } else if (HNSW_BQ_TYPE == index_type) {
+        nlohmann::json hnswbq_parameters{{"base_quantization_type", "rabitq"}, 
+                                            {"max_degree", max_degree}, 
+                                            {"ef_construction", ef_construction},
+                                            {"build_thread_count", 1},
+                                            {"extra_info_size", extra_info_size},
+                                            {"use_reorder", true},
+                                            {"precise_quantization_type", "fp32"},
+                                            {"precise_io_type", "block_memory_io"}};  
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}};
     } else {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
                                         {"max_degree", max_degree},
@@ -670,7 +720,7 @@ int deserialize_bin(VectorIndexPtr& index_handler,const std::string dir) {
     int dim = hnsw->get_dim();
     int index_type = hnsw->get_index_type();
     uint64_t extra_info_size = hnsw->get_extra_info_size();
-    const char *base_quantization_type = (index_type == HNSW_SQ_TYPE) ? "sq8" : "fp32";
+    const char *base_quantization_type = (index_type == HNSW_SQ_TYPE) ? "sq8" : ((index_type == HNSW_BQ_TYPE) ? "rabitq" : "fp32");
     nlohmann::json index_parameters;
     if (index_type == HNSW_TYPE) {
         nlohmann::json hnsw_parameters{{"max_degree", max_degree},
@@ -678,6 +728,16 @@ int deserialize_bin(VectorIndexPtr& index_handler,const std::string dir) {
                                     {"ef_search", ef_search},
                                     {"use_static", use_static}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"hnsw", hnsw_parameters}};
+     } else if (index_type == HNSW_BQ_TYPE) {
+        nlohmann::json hnswbq_parameters{{"base_quantization_type", base_quantization_type}, 
+                                            {"max_degree", max_degree}, 
+                                            {"ef_construction", ef_construction},
+                                            {"build_thread_count", 1},
+                                            {"extra_info_size", extra_info_size},
+                                            {"use_reorder", true},
+                                            {"precise_quantization_type", "fp32"},
+                                            {"precise_io_type", "block_memory_io"}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}};
     } else {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
                                             {"max_degree", max_degree}, 
