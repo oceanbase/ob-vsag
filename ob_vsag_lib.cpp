@@ -106,7 +106,7 @@ public:
                 const std::string& parameters,
                 const float*& dist, const int64_t*& ids, int64_t &result_size,
                 float valid_ratio, int index_type,
-                roaring::api::roaring64_bitmap_t *bitmap, bool reverse_filter,
+                FilterInterface *bitmap, bool reverse_filter,
                 bool need_extra_info, const char*& extra_infos);
   std::shared_ptr<vsag::Index>& get_index() {return index_;}
   void set_index(std::shared_ptr<vsag::Index> hnsw) {index_ = hnsw;}
@@ -189,16 +189,16 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
                const std::string& parameters,
                const float*& dist, const int64_t*& ids, int64_t &result_size,
                float valid_ratio, int index_type,
-               roaring::api::roaring64_bitmap_t *bitmap, bool reverse_filter,
+               FilterInterface *bitmap, bool reverse_filter,
                bool need_extra_info, const char*& extra_infos) {
     vsag::logger::debug("  search_parameters:{}", parameters);
     vsag::logger::debug("  topk:{}", topk);
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     auto filter = [bitmap, reverse_filter](int64_t id) -> bool {
         if (!reverse_filter) {
-            return roaring::api::roaring64_bitmap_contains(bitmap, id);
+            return bitmap->test(id);
         } else {
-            return !roaring::api::roaring64_bitmap_contains(bitmap, id);
+            return !(bitmap->test(id));
         }
     };
     auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter);
@@ -516,17 +516,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
         return static_cast<int>(error);
     }
     SlowTaskTimer t("knn_search");
-    // TODO
-    // revert and comment this for compile
-    roaring::api::roaring64_bitmap_t *bitmap = static_cast<roaring::api::roaring64_bitmap_t*>(invalid);
-    // FilterInterface *bitmap = static_cast<FilterInterface*>(invalid);
-    // auto filter = [bitmap, reverse_filter](int64_t id) -> bool {
-    //     if (!reverse_filter) {
-    //         return bitmap->test(id);
-    //     } else {
-    //         return !(bitmap->test(id));
-    //     }
-    // };
+    FilterInterface *bitmap = static_cast<FilterInterface*>(invalid);
     bool owner_set = false;
     nlohmann::json search_parameters;
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
