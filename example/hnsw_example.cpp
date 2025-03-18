@@ -6,6 +6,7 @@
 #include <iostream>
 #include "../default_logger.h"
 #include "roaring/roaring64.h"
+#include "vsag/iterator_context.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -452,11 +453,228 @@ int64_t example_extra_info() {
     return 0;
 }
 
+int64_t hgraph_iter_filter_example()
+{
+    std::cout<<"test iter_filter_example: "<<std::endl;
+    bool is_init = obvectorlib::is_init();
+    obvectorlib::VectorIndexPtr index_handler = NULL;
+    int dim = 1536;
+    int max_degree = 16;
+    int ef_search = 200;
+    int ef_construction = 100;
+    DefaultAllocator default_allocator;
+    const char* const METRIC_L2 = "l2";
+    const char* const METRIC_IP = "ip";
+
+    const char* const DATATYPE_FLOAT32 = "float32";
+    void * test_ptr = default_allocator.Allocate(10);
+    int ret_create_index = obvectorlib::create_index(index_handler,
+                                                     obvectorlib::HNSW_SQ_TYPE,
+                                                     DATATYPE_FLOAT32,
+                                                     METRIC_L2,
+                                                     dim,
+                                                     max_degree,
+                                                     ef_construction,
+                                                     ef_search,
+                                                     &default_allocator);
+   
+    if (ret_create_index!=0) return 333;
+    int num_vectors = 10000;
+    auto ids = new int64_t[num_vectors];
+    auto vectors = new float[dim * num_vectors];
+    std::mt19937 rng;
+    rng.seed(47);
+    std::uniform_real_distribution<> distrib_real;
+    for (int64_t i = 0; i < num_vectors; ++i) {
+        ids[i] = i;
+    }
+    for (int64_t i = 0; i < dim * num_vectors; ++i) {
+        vectors[i] = distrib_real(rng);
+    }
+
+    int inc_num = 10000;
+    auto inc = new float[dim * inc_num];
+    for (int64_t i = 0; i < dim * inc_num; ++i) {
+        inc[i] = distrib_real(rng);
+    }
+    auto ids2 = new int64_t[inc_num];
+    for (int64_t i = 0; i < inc_num; ++i) {
+        ids2[i] = i + num_vectors;
+    }
+    int ret_build_index = obvectorlib::build_index(index_handler, vectors, ids, dim, num_vectors);
+ 
+    int ret_add_index = obvectorlib::add_index(index_handler, inc, ids2, dim,inc_num);
+    
+    const float* result_dist;
+    const int64_t* result_ids;
+    int64_t result_size = 0;
+    
+    vsag::IteratorContextPtr filter_ctx = nullptr;
+    void * iter_ctx = &filter_ctx;
+
+    roaring::api::roaring64_bitmap_t* r1 = roaring::api::roaring64_bitmap_create();
+    roaring64_bitmap_add_range(r1, 0, 500);
+    TestFilter testfilter(r1);
+    const float *distances;
+    const char* extra_infos = nullptr;
+
+    int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
+                                                 result_dist,result_ids,result_size, 
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx);
+    ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
+    std::cout << "-------- result1: --------" << std::endl;
+    for (int i = 0; i < result_size; i++) {
+        std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
+        std::cout << "calres: " << result_ids[i] << " " << distances[i] << std::endl;
+    }    
+    
+
+    const float *distances2;
+    const float* result_dist2;
+    const int64_t* result_ids2;
+    int64_t result_size2 = 0;
+    std::cout << "-------- result2: --------" << std::endl;
+    ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
+                                                 result_dist2,result_ids2,result_size2, 
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx);
+    ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids2, result_size2, distances2);
+    for (int i = 0; i < result_size2; i++) {
+        std::cout << "result: " << result_ids2[i] << " " << result_dist2[i] << std::endl;
+        std::cout << "calres: " << result_ids2[i] << " " << distances2[i] << std::endl;
+    }
+
+    const float *distances3;
+    const float* result_dist3;
+    const int64_t* result_ids3;
+    int64_t result_size3 = 0;
+    std::cout << "-------- result3: --------" << std::endl;
+    ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 20,
+                                                 result_dist3,result_ids3,result_size3, 
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, true);
+    ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids3, result_size3, distances3);
+    for (int i = 0; i < result_size3; i++) {
+        std::cout << "result: " << result_ids3[i] << " " << result_dist3[i] << std::endl;
+        std::cout << "calres: " << result_ids3[i] << " " << distances3[i] << std::endl;
+    }
+    obvectorlib::delete_index(index_handler);
+    free(test_ptr);
+    return 0;
+}
+
+int64_t hnsw_iter_filter_example()
+{
+    std::cout<<"test iter_filter_example: "<<std::endl;
+    bool is_init = obvectorlib::is_init();
+    obvectorlib::VectorIndexPtr index_handler = NULL;
+    int dim = 1536;
+    int max_degree = 16;
+    int ef_search = 200;
+    int ef_construction = 100;
+    DefaultAllocator default_allocator;
+    const char* const METRIC_L2 = "l2";
+    const char* const METRIC_IP = "ip";
+
+    const char* const DATATYPE_FLOAT32 = "float32";
+    void * test_ptr = default_allocator.Allocate(10);
+    int ret_create_index = obvectorlib::create_index(index_handler,
+                                                     obvectorlib::HNSW_TYPE,
+                                                     DATATYPE_FLOAT32,
+                                                     METRIC_L2,
+                                                     dim,
+                                                     max_degree,
+                                                     ef_construction,
+                                                     ef_search,
+                                                     &default_allocator);
+   
+    if (ret_create_index!=0) return 333;
+    int num_vectors = 10000;
+    auto ids = new int64_t[num_vectors];
+    auto vectors = new float[dim * num_vectors];
+    std::mt19937 rng;
+    rng.seed(47);
+    std::uniform_real_distribution<> distrib_real;
+    for (int64_t i = 0; i < num_vectors; ++i) {
+        ids[i] = i;
+    }
+    for (int64_t i = 0; i < dim * num_vectors; ++i) {
+        vectors[i] = distrib_real(rng);
+    }
+
+    int inc_num = 10000;
+    auto inc = new float[dim * inc_num];
+    for (int64_t i = 0; i < dim * inc_num; ++i) {
+        inc[i] = distrib_real(rng);
+    }
+    auto ids2 = new int64_t[inc_num];
+    for (int64_t i = 0; i < inc_num; ++i) {
+        ids2[i] = i + num_vectors;
+    }
+ 
+    int ret_add_index = obvectorlib::add_index(index_handler, inc, ids2, dim,inc_num);
+    
+    const float* result_dist;
+    const int64_t* result_ids;
+    int64_t result_size = 0;
+    
+    vsag::IteratorContextPtr filter_ctx = nullptr;
+    void * iter_ctx = &filter_ctx;
+
+    roaring::api::roaring64_bitmap_t* r1 = roaring::api::roaring64_bitmap_create();
+    roaring64_bitmap_add_range(r1, 0, 500);
+    TestFilter testfilter(r1);
+    const float *distances;
+    const char* extra_infos = nullptr;
+
+    int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
+                                                 result_dist,result_ids,result_size, 
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx);
+    ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
+    std::cout << "-------- result1: --------" << std::endl;
+    for (int i = 0; i < result_size; i++) {
+        std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
+        std::cout << "calres: " << result_ids[i] << " " << distances[i] << std::endl;
+    }    
+    
+
+    const float *distances2;
+    const float* result_dist2;
+    const int64_t* result_ids2;
+    int64_t result_size2 = 0;
+    std::cout << "-------- result2: --------" << std::endl;
+    ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
+                                                 result_dist2,result_ids2,result_size2, 
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx);
+    ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids2, result_size2, distances2);
+    for (int i = 0; i < result_size2; i++) {
+        std::cout << "result: " << result_ids2[i] << " " << result_dist2[i] << std::endl;
+        std::cout << "calres: " << result_ids2[i] << " " << distances2[i] << std::endl;
+    }
+
+    const float *distances3;
+    const float* result_dist3;
+    const int64_t* result_ids3;
+    int64_t result_size3 = 0;
+    std::cout << "-------- result3: --------" << std::endl;
+    ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 20,
+                                                 result_dist3,result_ids3,result_size3, 
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, true);
+    ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids3, result_size3, distances3);
+    for (int i = 0; i < result_size3; i++) {
+        std::cout << "result: " << result_ids3[i] << " " << result_dist3[i] << std::endl;
+        std::cout << "calres: " << result_ids3[i] << " " << distances3[i] << std::endl;
+    }
+    obvectorlib::delete_index(index_handler);
+    free(test_ptr);
+    return 0;
+}
+
 int
 main() {
-    // hnswsq_example();
-    // example();
+    hnswsq_example();
+    example();
     //example_so();
-    example_extra_info();
+    // example_extra_info();
+    hnsw_iter_filter_example();
+    hgraph_iter_filter_example();
     return 0;
 }
