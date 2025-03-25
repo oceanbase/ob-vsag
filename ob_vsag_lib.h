@@ -50,7 +50,7 @@ extern bool is_init();
  * *critical = 5
  * *off = 6
  * */
-extern void set_log_level(int64_t level_num);
+extern void set_log_level(int32_t ob_level_num);
 extern void set_logger(void *logger_ptr);
 extern void set_block_size_limit(uint64_t size);
 extern bool is_supported_index(IndexType index_type);

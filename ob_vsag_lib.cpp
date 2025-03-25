@@ -255,9 +255,18 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
 bool is_init_ = vsag::init();
 
 void
-set_log_level(int64_t level_num) {
-    vsag::Logger::Level log_level = static_cast<vsag::Logger::Level>(level_num);
-    vsag::Options::Instance().logger()->SetLevel(log_level);
+set_log_level(int32_t ob_level_num) {
+    std::map<int32_t, int32_t> ob2vsag_log_level = {
+        {0 /*ERROR*/, vsag::Logger::Level::kERR},
+        {1 /*WARN*/, vsag::Logger::Level::kWARN},
+        {2 /*INFO*/, vsag::Logger::Level::kINFO},
+        {3 /*EDIAG*/, vsag::Logger::Level::kERR},
+        {4 /*WDIAG*/, vsag::Logger::Level::kWARN},
+        {5 /*TRACE*/, vsag::Logger::Level::kTRACE},
+        {6 /*DEBUG*/, vsag::Logger::Level::kDEBUG},
+    };
+    vsag::Options::Instance().logger()->SetLevel(
+        static_cast<vsag::Logger::Level>(ob2vsag_log_level[ob_level_num]));
 }
 
 bool is_init() {
@@ -348,10 +357,11 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
         std::shared_ptr<vsag::Index> hnsw;
         bool use_static = false;
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
-                                            {"max_degree", max_degree}, 
-                                            {"ef_construction", ef_construction},
-                                            {"build_thread_count", 1},
-                                            {"extra_info_size", extra_info_size}};
+                                         // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
+                                         {"max_degree", max_degree * 2}, 
+                                         {"ef_construction", ef_construction},
+                                         {"build_thread_count", 1},
+                                         {"extra_info_size", extra_info_size}};
         nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
         if (auto index = vsag::Factory::CreateIndex("hgraph", index_parameters.dump(), vsag_allocator);
             index.has_value()) {
@@ -381,13 +391,14 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
         std::shared_ptr<vsag::Index> hnsw;
         bool use_static = false;
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
-                                            {"max_degree", max_degree}, 
-                                            {"ef_construction", ef_construction},
-                                            {"build_thread_count", 1},
-                                            {"extra_info_size", extra_info_size},
-                                            {"use_reorder", true},
-                                            {"precise_quantization_type", "fp32"},
-                                            {"precise_io_type", "block_memory_io"}}; 
+                                         // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
+                                         {"max_degree", max_degree * 2}, 
+                                         {"ef_construction", ef_construction},
+                                         {"build_thread_count", 1},
+                                         {"extra_info_size", extra_info_size},
+                                         {"use_reorder", true},
+                                         {"precise_quantization_type", "fp32"},
+                                         {"precise_io_type", "block_memory_io"}}; 
         nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
         if (auto index = vsag::Factory::CreateIndex("hgraph", index_parameters.dump(), vsag_allocator);
             index.has_value()) {
