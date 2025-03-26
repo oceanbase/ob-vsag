@@ -282,7 +282,7 @@ bool is_init() {
 
 void set_logger(void *logger_ptr) {
     vsag::Options::Instance().set_logger(static_cast<vsag::Logger*>(logger_ptr));
-    vsag::Logger::Level log_level = static_cast<vsag::Logger::Level>(1);//default is debug level
+    vsag::Logger::Level log_level = static_cast<vsag::Logger::Level>(Logger::Level::kINFO);//default is info level
     vsag::Options::Instance().logger()->SetLevel(log_level);
 }
 
