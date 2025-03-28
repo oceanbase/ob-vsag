@@ -78,7 +78,7 @@ extern int delete_index(VectorIndexPtr& index_handler);
 extern int get_extra_info_by_ids(VectorIndexPtr& index_handler, 
                                 const int64_t* ids, 
                                 int64_t count, 
-                                const char *&extra_infos);
+                                char *extra_infos);
 } // namesapce obvectorlib
 #endif // OB_VSAG_LIB_H
 

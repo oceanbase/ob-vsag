@@ -104,7 +104,7 @@ public:
   int cal_distance_by_id(const float* vector, const int64_t* ids, int64_t count, const float*& dist);
   int get_extra_info_by_ids(const int64_t* ids, 
                             int64_t count, 
-                            const char *&extra_infos);
+                            char *extra_infos);
   int get_vid_bound(int64_t &min_vid, int64_t &max_vid);
   int knn_search(const vsag::DatasetPtr& query, int64_t topk,
                 const std::string& parameters,
@@ -185,11 +185,10 @@ int HnswIndexHandler::cal_distance_by_id(const float* vector, const int64_t* ids
 }
 
 int HnswIndexHandler::get_extra_info_by_ids(const int64_t* ids, 
-                                              int64_t count, 
-                                              const char *&extra_infos)
+                                            int64_t count, 
+                                            char *extra_infos)
 {
-    vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
-    extra_infos = index_->GetExtraInfoByIds(ids, count);
+    index_->GetExtraInfoByIds(ids, count, extra_infos);
     return 0;
 }
 
@@ -813,7 +812,7 @@ int delete_index(VectorIndexPtr& index_handler) {
 int get_extra_info_by_ids(VectorIndexPtr& index_handler, 
                           const int64_t* ids, 
                           int64_t count, 
-                          const char *&extra_infos) {
+                          char *extra_infos) {
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     if (index_handler == nullptr) {
         vsag::logger::debug("   null pointer addr, index_handler:{}", (void*)index_handler);
