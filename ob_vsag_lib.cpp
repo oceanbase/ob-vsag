@@ -396,6 +396,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                                          {"build_thread_count", 1},
                                          {"extra_info_size", extra_info_size},
                                          {"use_reorder", true},
+                                         {"ignore_reorder", true},
                                          {"precise_quantization_type", "fp32"},
                                          {"precise_io_type", "block_memory_io"}}; 
         nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
@@ -666,6 +667,7 @@ int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream) {
                                             {"build_thread_count", 1},
                                             {"extra_info_size", extra_info_size},
                                             {"use_reorder", true},
+                                            {"ignore_reorder", true},
                                             {"precise_quantization_type", "fp32"},
                                             {"precise_io_type", "block_memory_io"}};  
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}};
@@ -763,6 +765,7 @@ int deserialize_bin(VectorIndexPtr& index_handler,const std::string dir) {
                                             {"build_thread_count", 1},
                                             {"extra_info_size", extra_info_size},
                                             {"use_reorder", true},
+                                            {"ignore_reorder", true},
                                             {"precise_quantization_type", "fp32"},
                                             {"precise_io_type", "block_memory_io"}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}};
