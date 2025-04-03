@@ -36,7 +36,7 @@ int64_t example() {
     const char* const DATATYPE_FLOAT32 = "float32";
     void * test_ptr = default_allocator.Allocate(10);
     int ret_create_index = obvectorlib::create_index(index_handler,
-                                                     obvectorlib::HGRAPH_TYPE,
+                                                     obvectorlib::HNSW_TYPE,
                                                      DATATYPE_FLOAT32,
                                                      METRIC_L2,
                                                      dim,
@@ -260,7 +260,7 @@ int example_so() {
 }
 
 int64_t hnswsq_example() {
-    std::cout<<"test hns_sq_example: "<<std::endl;
+    std::cout<<"test hnswsq_example: "<<std::endl;
     bool is_init = obvectorlib::is_init();
     obvectorlib::VectorIndexPtr index_handler = NULL;
     int dim = 128;
@@ -351,7 +351,7 @@ int64_t hnswsq_example() {
 }
 
 int64_t example_extra_info() {
-    std::cout<<"test hnsw_example: "<<std::endl;
+    std::cout<<"test example_extra_info example: "<<std::endl;
     bool is_init = obvectorlib::is_init();
     //set_log_level(1);
     obvectorlib::VectorIndexPtr index_handler = NULL;
@@ -455,7 +455,7 @@ int64_t example_extra_info() {
 
 int64_t hgraph_iter_filter_example()
 {
-    std::cout<<"test iter_filter_example: "<<std::endl;
+    std::cout<<"test hgraph_iter_filter_example: "<<std::endl;
     bool is_init = obvectorlib::is_init();
     obvectorlib::VectorIndexPtr index_handler = NULL;
     int dim = 1536;
@@ -509,8 +509,8 @@ int64_t hgraph_iter_filter_example()
     const int64_t* result_ids;
     int64_t result_size = 0;
     
-    vsag::IteratorContextPtr filter_ctx = nullptr;
-    void * iter_ctx = &filter_ctx;
+    // vsag::IteratorContext *filter_ctx = nullptr;
+    void *iter_ctx = nullptr;
 
     roaring::api::roaring64_bitmap_t* r1 = roaring::api::roaring64_bitmap_create();
     roaring64_bitmap_add_range(r1, 0, 500);
@@ -520,7 +520,7 @@ int64_t hgraph_iter_filter_example()
 
     int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx);
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, false);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
     std::cout << "-------- result1: --------" << std::endl;
     for (int i = 0; i < result_size; i++) {
@@ -536,7 +536,7 @@ int64_t hgraph_iter_filter_example()
     std::cout << "-------- result2: --------" << std::endl;
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist2,result_ids2,result_size2, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx);
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, false);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids2, result_size2, distances2);
     for (int i = 0; i < result_size2; i++) {
         std::cout << "result: " << result_ids2[i] << " " << result_dist2[i] << std::endl;
@@ -556,6 +556,7 @@ int64_t hgraph_iter_filter_example()
         std::cout << "result: " << result_ids3[i] << " " << result_dist3[i] << std::endl;
         std::cout << "calres: " << result_ids3[i] << " " << distances3[i] << std::endl;
     }
+    obvectorlib::delete_iter_ctx(iter_ctx);
     obvectorlib::delete_index(index_handler);
     free(test_ptr);
     return 0;
@@ -616,8 +617,8 @@ int64_t hnsw_iter_filter_example()
     const int64_t* result_ids;
     int64_t result_size = 0;
     
-    vsag::IteratorContextPtr filter_ctx = nullptr;
-    void * iter_ctx = &filter_ctx;
+    // vsag::IteratorContext *filter_ctx = nullptr;
+    void *iter_ctx = nullptr;
 
     roaring::api::roaring64_bitmap_t* r1 = roaring::api::roaring64_bitmap_create();
     roaring64_bitmap_add_range(r1, 0, 500);
@@ -627,7 +628,7 @@ int64_t hnsw_iter_filter_example()
 
     int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx);
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, false);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
     std::cout << "-------- result1: --------" << std::endl;
     for (int i = 0; i < result_size; i++) {
@@ -643,7 +644,7 @@ int64_t hnsw_iter_filter_example()
     std::cout << "-------- result2: --------" << std::endl;
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist2,result_ids2,result_size2, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx);
+                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, false);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids2, result_size2, distances2);
     for (int i = 0; i < result_size2; i++) {
         std::cout << "result: " << result_ids2[i] << " " << result_dist2[i] << std::endl;
@@ -663,6 +664,7 @@ int64_t hnsw_iter_filter_example()
         std::cout << "result: " << result_ids3[i] << " " << result_dist3[i] << std::endl;
         std::cout << "calres: " << result_ids3[i] << " " << distances3[i] << std::endl;
     }
+    obvectorlib::delete_iter_ctx(iter_ctx);
     obvectorlib::delete_index(index_handler);
     free(test_ptr);
     return 0;
@@ -672,8 +674,7 @@ int
 main() {
     hnswsq_example();
     example();
-    //example_so();
-    // example_extra_info();
+    example_extra_info();
     hnsw_iter_filter_example();
     hgraph_iter_filter_example();
     return 0;

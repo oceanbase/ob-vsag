@@ -111,8 +111,14 @@ public:
                 const float*& dist, const int64_t*& ids, int64_t &result_size,
                 float valid_ratio, int index_type,
                 FilterInterface *bitmap, bool reverse_filter,
+                bool need_extra_info, const char*& extra_infos);
+    int knn_search(const vsag::DatasetPtr& query, int64_t topk,
+                const std::string& parameters,
+                const float*& dist, const int64_t*& ids, int64_t &result_size,
+                float valid_ratio, int index_type,
+                FilterInterface *bitmap, bool reverse_filter,
                 bool need_extra_info, const char*& extra_infos,
-                void *iter_ctx = nullptr, bool is_last_search = false);
+                void *&iter_ctx, bool is_last_search);
   std::shared_ptr<vsag::Index>& get_index() {return index_;}
   void set_index(std::shared_ptr<vsag::Index> hnsw) {index_ = hnsw;}
   vsag::Allocator* get_allocator() {return allocator_;}
@@ -194,8 +200,15 @@ int HnswIndexHandler::get_extra_info_by_ids(const int64_t* ids,
 
 int HnswIndexHandler::get_vid_bound(int64_t &min_vid, int64_t &max_vid)
 {
-    auto result = index_->GetMinAndMaxId(min_vid, max_vid);
-    return 0;
+    vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
+    auto result = index_->GetMinAndMaxId();
+    if (result.has_value()) {
+        min_vid = result.value().first;
+        max_vid = result.value().second;
+    } else {
+        error = result.error().type;
+    }
+    return static_cast<int>(error);
 }
 
 int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
@@ -203,8 +216,7 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size,
                float valid_ratio, int index_type,
                FilterInterface *bitmap, bool reverse_filter,
-               bool need_extra_info, const char*& extra_infos,
-               void *iter_ctx, bool is_last_search) {
+               bool need_extra_info, const char*& extra_infos) {
     vsag::logger::debug("  search_parameters:{}", parameters);
     vsag::logger::debug("  topk:{}", topk);
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
@@ -217,18 +229,56 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
     };
     tl::expected<std::shared_ptr<vsag::Dataset>, vsag::Error> result;
     auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter);
-    if (iter_ctx == nullptr) { // knn search without iter filter
-        result = (index_type == HNSW_TYPE || index_type == HGRAPH_TYPE) ?
-                    index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter) :
-                    index_->KnnSearch(query, topk, parameters, filter);
-    } else { // iter filter
-        vsag::IteratorContextPtr* input_iter = static_cast<vsag::IteratorContextPtr*>(iter_ctx);
-        if (index_type == HNSW_TYPE || index_type == HGRAPH_TYPE || index_type == HNSW_SQ_TYPE) {
-            result = index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter, input_iter, is_last_search);
-        } else {
-            error = vsag::ErrorType::UNSUPPORTED_INDEX;
-            vsag::logger::error("knn search iter filter not support BQ.");
+    result = (index_type == HNSW_TYPE || index_type == HGRAPH_TYPE) ?
+                index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter) :
+                index_->KnnSearch(query, topk, parameters, filter);
+    if (result.has_value()) {
+        //result的生命周期
+        result.value()->Owner(false);
+        ids = result.value()->GetIds();
+        dist = result.value()->GetDistances();
+        result_size = result.value()->GetDim();
+        if (need_extra_info) {
+            extra_infos = result.value()->GetExtraInfos();
         }
+        // print the results
+        for (int64_t i = 0; i < result_size; ++i) {
+            vsag::logger::debug("  knn search id : {}, distance : {}",ids[i],dist[i]);
+        }
+        return 0; 
+    } else {
+        error = result.error().type;
+    }
+
+    return static_cast<int>(error);
+}
+
+int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
+               const std::string& parameters,
+               const float*& dist, const int64_t*& ids, int64_t &result_size,
+               float valid_ratio, int index_type,
+               FilterInterface *bitmap, bool reverse_filter,
+               bool need_extra_info, const char*& extra_infos,
+               void *&iter_ctx, bool is_last_search) {
+    vsag::logger::debug("  search_parameters:{}", parameters);
+    vsag::logger::debug("  topk:{}", topk);
+    vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
+    auto filter = [bitmap, reverse_filter](int64_t id) -> bool {
+        if (!reverse_filter) {
+            return bitmap->test(id);
+        } else {
+            return !(bitmap->test(id));
+        }
+    };
+    tl::expected<std::shared_ptr<vsag::Dataset>, vsag::Error> result;
+    auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter);
+    vsag::IteratorContext* input_iter = static_cast<vsag::IteratorContext*>(iter_ctx);
+    if (index_type == HNSW_TYPE || index_type == HGRAPH_TYPE || index_type == HNSW_SQ_TYPE) {
+        result = index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter, input_iter, is_last_search);
+        iter_ctx = input_iter;
+    } else {
+        error = vsag::ErrorType::UNSUPPORTED_INDEX;
+        vsag::logger::error("knn search iter filter not support BQ.");
     }
     if (result.has_value()) {
         //result的生命周期
@@ -304,12 +354,11 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
     int ret = 0;
     if (dtype == nullptr || metric == nullptr) {
         vsag::logger::debug("   null pointer addr, dtype:{}, metric:{}", (void*)dtype, (void*)metric);
-        return static_cast<int>(error);
+        return static_cast<int>(vsag::ErrorType::UNKNOWN_ERROR);
     }
     SlowTaskTimer t("z");
     vsag::Allocator* vsag_allocator = NULL;
     bool is_support = is_supported_index(index_type);
-    const char *base_quantization_type = (index_type == HNSW_SQ_TYPE) ? "sq8" : ((index_type == HNSW_BQ_TYPE) ? "rabitq" : "fp32");
     vsag::logger::debug("   index type : {}, is_supported : {}", static_cast<int>(index_type), is_support);
     if (allocator == NULL) {
         vsag_allocator = NULL;
@@ -318,114 +367,79 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
         vsag_allocator =  static_cast<vsag::Allocator*>(allocator);
         vsag::logger::debug("   allocator_addr:{}",allocator);
     }
+    nlohmann::json index_parameters;
+    std::string index_type_str;
 
     if (index_type == HNSW_TYPE) {
         // create index
-        std::shared_ptr<vsag::Index> hnsw;
         bool use_static = false;
+        index_type_str = "hnsw";
         nlohmann::json hnsw_parameters{{"max_degree", max_degree},
                                 {"ef_construction", ef_construction},
                                 {"ef_search", ef_search},
                                 {"use_static", use_static}};
-        nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"hnsw", hnsw_parameters}}; 
-        if (auto index = vsag::Factory::CreateIndex("hnsw", index_parameters.dump(), vsag_allocator);
-            index.has_value()) {
-            hnsw = index.value();
-            HnswIndexHandler* hnsw_index = new HnswIndexHandler(true,
-                                                                false,
-                                                                use_static,
-                                                                dtype,
-                                                                metric,
-                                                                max_degree,
-                                                                ef_construction,
-                                                                ef_search,
-                                                                dim,
-                                                                index_type,
-                                                                hnsw,
-                                                                vsag_allocator,
-                                                                0/*extra_info_size*/);
-            index_handler = static_cast<VectorIndexPtr>(hnsw_index);
-            vsag::logger::debug("   success to create hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(), (void*)vsag_allocator);
-            return 0;
-        } else {
-            error = index.error().type;
-            vsag::logger::debug("   fail to create hnsw index , index parameter:{}", index_parameters.dump());
-        }
-    } else if (index_type == HNSW_SQ_TYPE || index_type == HGRAPH_TYPE) {
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"hnsw", hnsw_parameters}}; 
+    } else if (index_type == HNSW_SQ_TYPE) {
         // create hnsw sq index
-        std::shared_ptr<vsag::Index> hnsw;
-        bool use_static = false;
-        nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
+        index_type_str = "hgraph";
+        nlohmann::json hnswsq_parameters{{"base_quantization_type", "sq8"},
+                                         // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
+                                         {"max_degree", max_degree * 2}, 
+                                         {"ef_construction", ef_construction},
+                                         {"build_thread_count", 1}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
+    } else if (index_type == HGRAPH_TYPE) {
+        // create hnsw fp index
+        index_type_str = "hgraph";
+        nlohmann::json hnswsq_parameters{{"base_quantization_type", "fp32"},
                                          // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
                                          {"max_degree", max_degree * 2}, 
                                          {"ef_construction", ef_construction},
                                          {"build_thread_count", 1},
                                          {"extra_info_size", extra_info_size}};
-        nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
-        if (auto index = vsag::Factory::CreateIndex("hgraph", index_parameters.dump(), vsag_allocator);
-            index.has_value()) {
-            hnsw = index.value();
-            HnswIndexHandler* hnsw_index = new HnswIndexHandler(true,
-                                                                false,
-                                                                use_static,
-                                                                dtype,
-                                                                metric,
-                                                                max_degree,
-                                                                ef_construction,
-                                                                ef_search,
-                                                                dim,
-                                                                index_type,
-                                                                hnsw,
-                                                                vsag_allocator,
-                                                                extra_info_size);
-            index_handler = static_cast<VectorIndexPtr>(hnsw_index);
-            vsag::logger::debug("   success to create hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(), (void*)vsag_allocator);
-            return 0;
-        } else {
-            error = index.error().type;
-            vsag::logger::debug("   fail to create hnsw index , index parameter:{}", index_parameters.dump());
-        }
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
     } else if (index_type == HNSW_BQ_TYPE) {
-        // create hnsw sq index
-        std::shared_ptr<vsag::Index> hnsw;
-        bool use_static = false;
-        nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
+        // create hnsw bq index
+        index_type_str = "hgraph";
+        nlohmann::json hnswsq_parameters{{"base_quantization_type", "rabitq"},
                                          // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
                                          {"max_degree", max_degree * 2}, 
                                          {"ef_construction", ef_construction},
                                          {"build_thread_count", 1},
-                                         {"extra_info_size", extra_info_size},
                                          {"use_reorder", true},
                                          {"ignore_reorder", true},
                                          {"precise_quantization_type", "fp32"},
                                          {"precise_io_type", "block_memory_io"}}; 
-        nlohmann::json index_parameters{{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
-        if (auto index = vsag::Factory::CreateIndex("hgraph", index_parameters.dump(), vsag_allocator);
-            index.has_value()) {
-            hnsw = index.value();
-            HnswIndexHandler* hnsw_index = new HnswIndexHandler(true,
-                                                                false,
-                                                                use_static,
-                                                                dtype,
-                                                                metric,
-                                                                max_degree,
-                                                                ef_construction,
-                                                                ef_search,
-                                                                dim,
-                                                                index_type,
-                                                                hnsw,
-                                                                vsag_allocator,
-                                                                extra_info_size);
-            index_handler = static_cast<VectorIndexPtr>(hnsw_index);
-            vsag::logger::debug("   success to create hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(), (void*)vsag_allocator);
-            return 0;
-        } else {
-            error = index.error().type;
-            vsag::logger::debug("   fail to create hnsw index , index parameter:{}", index_parameters.dump());
-        }
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
     } else if (!is_support) {
         error = vsag::ErrorType::UNSUPPORTED_INDEX;
         vsag::logger::debug("   fail to create hnsw index , index type not supported:{}", static_cast<int>(index_type));
+        return static_cast<int>(error);
+    }
+
+    if (auto index = vsag::Factory::CreateIndex(index_type_str, index_parameters.dump(), vsag_allocator);
+        index.has_value()) {
+        std::shared_ptr<vsag::Index> hnsw;
+        hnsw = index.value();
+        HnswIndexHandler* hnsw_index = new HnswIndexHandler(true,
+                                                            false,
+                                                            false,
+                                                            dtype,
+                                                            metric,
+                                                            max_degree,
+                                                            ef_construction,
+                                                            ef_search,
+                                                            dim,
+                                                            index_type,
+                                                            hnsw,
+                                                            vsag_allocator,
+                                                            extra_info_size);
+        index_handler = static_cast<VectorIndexPtr>(hnsw_index);
+        vsag::logger::debug("   success to create hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(), (void*)vsag_allocator);
+        return 0;
+    } else {
+        error = index.error().type;
+        vsag::logger::debug("   fail to create hnsw index , index parameter:{}", index_parameters.dump());
     }
     ret = static_cast<int>(error);
     if (ret != 0) {
@@ -543,8 +557,44 @@ extern int get_vid_bound(VectorIndexPtr& index_handler, int64_t &min_vid, int64_
 int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                bool need_extra_info, const char*& extra_infos,
+               void* invalid, bool reverse_filter, float valid_ratio) {
+    vsag::logger::debug("TRACE LOG[knn_search]:");
+    vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
+    int ret = 0;
+    if (index_handler == nullptr || query_vector == nullptr) {
+        vsag::logger::debug("   null pointer addr, index_handler:{}, query_vector:{}",
+                                                   (void*)index_handler, (void*)query_vector);
+        return static_cast<int>(error);
+    }
+    SlowTaskTimer t("knn_search");
+    FilterInterface *bitmap = static_cast<FilterInterface*>(invalid);
+    bool owner_set = false;
+    nlohmann::json search_parameters;
+    HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
+    const IndexType index_type =static_cast<IndexType>(hnsw->get_index_type());
+    if (HNSW_SQ_TYPE == index_type || HNSW_BQ_TYPE == index_type || HGRAPH_TYPE == index_type) {
+        search_parameters = {{"hgraph", {{"ef_search", ef_search}}},};
+        owner_set = true;
+    } else {
+        search_parameters = {{"hnsw", {{"ef_search", ef_search}, {"skip_ratio", 0.7f}}},};
+    }
+    auto query = vsag::Dataset::Make();
+    query->NumElements(1)->Dim(dim)->Float32Vectors(query_vector)->Owner(false);
+    ret = hnsw->knn_search(
+        query, topk, search_parameters.dump(), dist, ids, result_size, valid_ratio, index_type,
+        bitmap, reverse_filter,
+        need_extra_info, extra_infos);
+    if (ret != 0) {
+        vsag::logger::error("   knn search error happend, ret={}", ret);
+    }
+    return ret;
+}
+
+int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64_t topk,
+               const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
+               bool need_extra_info, const char*& extra_infos,
                void* invalid, bool reverse_filter, float valid_ratio, 
-               void *iter_ctx, bool is_last_search) {
+               void *&iter_ctx, bool is_last_search) {
     vsag::logger::debug("TRACE LOG[knn_search]:");
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     int ret = 0;
@@ -660,24 +710,29 @@ int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream) {
                                     {"ef_search", ef_search},
                                     {"use_static", use_static}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"hnsw", hnsw_parameters}};
+    } else if (HNSW_SQ_TYPE == index_type) {
+        nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
+                                        {"max_degree", max_degree},
+                                        {"ef_construction", ef_construction},
+                                        {"build_thread_count", 1}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};
     } else if (HNSW_BQ_TYPE == index_type) {
         nlohmann::json hnswbq_parameters{{"base_quantization_type", "rabitq"}, 
                                             {"max_degree", max_degree}, 
                                             {"ef_construction", ef_construction},
                                             {"build_thread_count", 1},
-                                            {"extra_info_size", extra_info_size},
                                             {"use_reorder", true},
                                             {"ignore_reorder", true},
                                             {"precise_quantization_type", "fp32"},
                                             {"precise_io_type", "block_memory_io"}};  
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}};
-    } else {
+    } else if (HGRAPH_TYPE == index_type) {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
                                         {"max_degree", max_degree},
                                         {"ef_construction", ef_construction},
                                         {"build_thread_count", 1},
                                         {"extra_info_size", extra_info_size}};
-        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};       
     }
 
     vsag::logger::debug("   Deserilize hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(),(void*)hnsw->get_allocator());
@@ -810,6 +865,14 @@ int delete_index(VectorIndexPtr& index_handler) {
         index_handler = NULL;
     }
     return 0;
+}
+
+void delete_iter_ctx(void *iter_ctx) {
+    vsag::logger::debug("TRACE LOG[delete_iter_ctx]");
+    if (iter_ctx != NULL) {
+        delete static_cast<vsag::IteratorContext*>(iter_ctx);
+        iter_ctx = NULL;
+    }
 }
 
 int get_extra_info_by_ids(VectorIndexPtr& index_handler, 
