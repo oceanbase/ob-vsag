@@ -273,15 +273,9 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
     tl::expected<std::shared_ptr<vsag::Dataset>, vsag::Error> result;
     auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter);
     vsag::IteratorContext* input_iter = static_cast<vsag::IteratorContext*>(iter_ctx);
-    if (index_type == HNSW_TYPE || index_type == HGRAPH_TYPE || index_type == HNSW_SQ_TYPE) {
-        result = index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter, input_iter, is_last_search);
-        iter_ctx = input_iter;
-    } else {
-        error = vsag::ErrorType::UNSUPPORTED_INDEX;
-        vsag::logger::error("knn search iter filter not support BQ.");
-    }
+    result = index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter, input_iter, is_last_search);
     if (result.has_value()) {
-        //result的生命周期
+        iter_ctx = input_iter;
         result.value()->Owner(false);
         ids = result.value()->GetIds();
         dist = result.value()->GetDistances();
@@ -387,7 +381,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                                          {"max_degree", max_degree * 2}, 
                                          {"ef_construction", ef_construction},
                                          {"build_thread_count", 1}};
-        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}}; 
     } else if (index_type == HGRAPH_TYPE) {
         // create hnsw fp index
         index_type_str = "hgraph";
@@ -395,9 +389,8 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                                          // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
                                          {"max_degree", max_degree * 2}, 
                                          {"ef_construction", ef_construction},
-                                         {"build_thread_count", 1},
-                                         {"extra_info_size", extra_info_size}};
-        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
+                                         {"build_thread_count", 1}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}}; 
     } else if (index_type == HNSW_BQ_TYPE) {
         // create hnsw bq index
         index_type_str = "hgraph";
@@ -410,7 +403,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                                          {"ignore_reorder", true},
                                          {"precise_quantization_type", "fp32"},
                                          {"precise_io_type", "block_memory_io"}}; 
-        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}}; 
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}}; 
     } else if (!is_support) {
         error = vsag::ErrorType::UNSUPPORTED_INDEX;
         vsag::logger::debug("   fail to create hnsw index , index type not supported:{}", static_cast<int>(index_type));
@@ -715,7 +708,7 @@ int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream) {
                                         {"max_degree", max_degree},
                                         {"ef_construction", ef_construction},
                                         {"build_thread_count", 1}};
-        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}};
     } else if (HNSW_BQ_TYPE == index_type) {
         nlohmann::json hnswbq_parameters{{"base_quantization_type", "rabitq"}, 
                                             {"max_degree", max_degree}, 
@@ -725,14 +718,13 @@ int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream) {
                                             {"ignore_reorder", true},
                                             {"precise_quantization_type", "fp32"},
                                             {"precise_io_type", "block_memory_io"}};  
-        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswbq_parameters}};
     } else if (HGRAPH_TYPE == index_type) {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
                                         {"max_degree", max_degree},
                                         {"ef_construction", ef_construction},
-                                        {"build_thread_count", 1},
-                                        {"extra_info_size", extra_info_size}};
-        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};       
+                                        {"build_thread_count", 1}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}};       
     }
 
     vsag::logger::debug("   Deserilize hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(),(void*)hnsw->get_allocator());
