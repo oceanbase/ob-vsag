@@ -670,12 +670,92 @@ int64_t hnsw_iter_filter_example()
     return 0;
 }
 
+int64_t hnswbq_example() {
+    std::cout<<"test hns_bq_example: "<<std::endl;
+    bool is_init = obvectorlib::is_init();
+    obvectorlib::VectorIndexPtr index_handler = NULL;
+    int dim = 128;
+    int max_degree = 16;
+    int ef_search = 200;
+    int ef_construction = 100;
+    DefaultAllocator default_allocator;
+    const char* const METRIC_L2 = "l2";
+
+    const char* const DATATYPE_FLOAT32 = "float32";
+    void * test_ptr = default_allocator.Allocate(10);
+    int ret_create_index = obvectorlib::create_index(index_handler,
+                                                     obvectorlib::HNSW_BQ_TYPE,
+                                                     DATATYPE_FLOAT32,
+                                                     METRIC_L2,
+                                                     dim,
+                                                     max_degree,
+                                                     ef_construction,
+                                                     ef_search,
+                                                     &default_allocator);
+   
+    if (ret_create_index!=0) return 333;
+    int num_vectors = 10000;
+    auto ids = new int64_t[num_vectors];
+    auto vectors = new float[dim * num_vectors];
+    std::mt19937 rng;
+    rng.seed(47);
+    std::uniform_real_distribution<> distrib_real;
+    for (int64_t i = 0; i < num_vectors; ++i) {
+        ids[i] = i + num_vectors*10;
+    }
+    for (int64_t i = 0; i < dim * num_vectors; ++i) {
+        vectors[i] = distrib_real(rng);
+    }
+    int ret_build_index = obvectorlib::build_index(index_handler, vectors, ids, dim, num_vectors);
+
+    int64_t num_size = 0;
+    int ret_get_element = obvectorlib::get_index_number(index_handler, num_size);
+    std::cout<<"after add index, size is "<<num_size<<" " <<ret_get_element<<std::endl;
+    
+    const float* result_dist;
+    const int64_t* result_ids;
+    int64_t result_size = 0;
+    auto query_vector = new float[dim];
+    for (int64_t i = 0; i < dim; ++i) {
+        query_vector[i] = distrib_real(rng);
+    }
+
+    roaring::api::roaring64_bitmap_t* r1 = roaring::api::roaring64_bitmap_create();
+
+    roaring::api::roaring64_bitmap_add(r1, 18);
+    roaring::api::roaring64_bitmap_add(r1, 1169);
+    roaring::api::roaring64_bitmap_add(r1, 1285);
+    std::cout << "before search" << std::endl;
+    TestFilter testfilter(r1);
+    const char *extra_info = nullptr;
+    int ret_knn_search = obvectorlib::knn_search(index_handler, query_vector, dim, 10,
+                                                 result_dist,result_ids,result_size, 
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter);
+    
+    for (int i = 0; i < result_size; i++) {
+        std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
+    }
+    int inc_num = 1000;
+    auto inc = new float[dim * inc_num];
+    for (int64_t i = 0; i < dim * inc_num; ++i) {
+        inc[i] = distrib_real(rng);
+    }
+    auto ids2 = new int64_t[inc_num];
+    for (int64_t i = 0; i < inc_num; ++i) {
+        ids2[i] = i + num_vectors*100;
+    }
+    obvectorlib::delete_index(index_handler);
+    free(test_ptr);
+    return 0;
+}
+
 int
 main() {
     hnswsq_example();
     example();
-    example_extra_info();
+    //example_extra_info();
     hnsw_iter_filter_example();
     hgraph_iter_filter_example();
+    hnswbq_example();
     return 0;
 }

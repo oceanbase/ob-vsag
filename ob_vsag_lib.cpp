@@ -201,12 +201,18 @@ int HnswIndexHandler::get_extra_info_by_ids(const int64_t* ids,
 int HnswIndexHandler::get_vid_bound(int64_t &min_vid, int64_t &max_vid)
 {
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
-    auto result = index_->GetMinAndMaxId();
-    if (result.has_value()) {
-        min_vid = result.value().first;
-        max_vid = result.value().second;
+    int64_t element_cnt = index_->GetNumElements();
+    if (element_cnt == 0) {
+        return 0;
     } else {
-        error = result.error().type;
+        auto result = index_->GetMinAndMaxId();
+        if (result.has_value()) {
+            min_vid = result.value().first;
+            max_vid = result.value().second;
+            return 0;
+        } else {
+            error = result.error().type;
+        }
     }
     return static_cast<int>(error);
 }
@@ -229,9 +235,7 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
     };
     tl::expected<std::shared_ptr<vsag::Dataset>, vsag::Error> result;
     auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter);
-    result = (index_type == HNSW_TYPE || index_type == HGRAPH_TYPE) ?
-                index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter) :
-                index_->KnnSearch(query, topk, parameters, filter);
+    result = index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter);
     if (result.has_value()) {
         //result的生命周期
         result.value()->Owner(false);
@@ -542,7 +546,7 @@ extern int get_vid_bound(VectorIndexPtr& index_handler, int64_t &min_vid, int64_
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler); 
     int ret = hnsw->get_vid_bound(min_vid, max_vid);
     if (ret != 0) {
-        vsag::logger::error("   knn search error happend, ret={}", ret);
+        vsag::logger::error("   get vid bound error happend, ret={}", ret);
     }
     return ret;
 }
