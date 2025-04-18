@@ -16,6 +16,7 @@ public:
     TestFilter(roaring::api::roaring64_bitmap_t *bitmap) : bitmap_(bitmap) {}
     ~TestFilter() {}
     bool test(int64_t id) override { return roaring::api::roaring64_bitmap_contains(bitmap_, id); }
+    bool test(const char* data) override { return true; }
 public:
     roaring::api::roaring64_bitmap_t* bitmap_;
 };
@@ -87,13 +88,13 @@ int64_t example() {
     const char *extra_info = nullptr;
     int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, 1);
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, false, 1);
     
     roaring64_bitmap_add_range(r1, 0, 19800);
 
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, 0.01);
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, false, 0.01);
     const float *distances;
     // ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
     for (int i = 0; i < result_size; i++) {
@@ -428,10 +429,11 @@ int64_t example_extra_info() {
 
     roaring::api::roaring64_bitmap_t* r1 = roaring::api::roaring64_bitmap_create();
     const char *extra_info_search = nullptr;
+    TestFilter testfilter(r1);
     std::cout<<"test knn_search: "<<std::endl;
     int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size,
-                                                 100, true/*need_extra_info*/, extra_info_search, r1);
+                                                 100, true/*need_extra_info*/, extra_info_search, &testfilter);
     std::string s1(extra_info_search, extra_info_search + extra_info_sz);
     std::cout << s1 << std::endl;
     roaring64_bitmap_add_range(r1, 0, 19800);
@@ -439,7 +441,7 @@ int64_t example_extra_info() {
     std::cout<<"test knn_search2: "<<std::endl;
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size,
-                                                 100, true/*need_extra_info*/, extra_info_search, r1);
+                                                 100, true/*need_extra_info*/, extra_info_search, &testfilter);
     std::string s2(extra_info_search, extra_info_search + extra_info_sz);
     std::cout << s2 << std::endl;
     const float *distances = nullptr;
@@ -520,7 +522,7 @@ int64_t hgraph_iter_filter_example()
 
     int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, false);
+                                                 100, false, extra_infos, &testfilter, false, false, 0.97, iter_ctx, false);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
     std::cout << "-------- result1: --------" << std::endl;
     for (int i = 0; i < result_size; i++) {
@@ -536,7 +538,7 @@ int64_t hgraph_iter_filter_example()
     std::cout << "-------- result2: --------" << std::endl;
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist2,result_ids2,result_size2, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, false);
+                                                 100, false, extra_infos, &testfilter, false, false, 0.97, iter_ctx, false);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids2, result_size2, distances2);
     for (int i = 0; i < result_size2; i++) {
         std::cout << "result: " << result_ids2[i] << " " << result_dist2[i] << std::endl;
@@ -550,7 +552,7 @@ int64_t hgraph_iter_filter_example()
     std::cout << "-------- result3: --------" << std::endl;
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 20,
                                                  result_dist3,result_ids3,result_size3, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, true);
+                                                 100, false, extra_infos, &testfilter, false, false, 0.97, iter_ctx, true);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids3, result_size3, distances3);
     for (int i = 0; i < result_size3; i++) {
         std::cout << "result: " << result_ids3[i] << " " << result_dist3[i] << std::endl;
@@ -628,7 +630,7 @@ int64_t hnsw_iter_filter_example()
 
     int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, false);
+                                                 100, false, extra_infos, &testfilter, false, false, 0.97, iter_ctx, false);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
     std::cout << "-------- result1: --------" << std::endl;
     for (int i = 0; i < result_size; i++) {
@@ -644,7 +646,7 @@ int64_t hnsw_iter_filter_example()
     std::cout << "-------- result2: --------" << std::endl;
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist2,result_ids2,result_size2, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, false);
+                                                 100, false, extra_infos, &testfilter, false, false, 0.97, iter_ctx, false);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids2, result_size2, distances2);
     for (int i = 0; i < result_size2; i++) {
         std::cout << "result: " << result_ids2[i] << " " << result_dist2[i] << std::endl;
@@ -658,7 +660,7 @@ int64_t hnsw_iter_filter_example()
     std::cout << "-------- result3: --------" << std::endl;
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 20,
                                                  result_dist3,result_ids3,result_size3, 
-                                                 100, false, extra_infos, &testfilter, false, 0.97, iter_ctx, true);
+                                                 100, false, extra_infos, &testfilter, false, false, 0.97, iter_ctx, true);
     ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids3, result_size3, distances3);
     for (int i = 0; i < result_size3; i++) {
         std::cout << "result: " << result_ids3[i] << " " << result_dist3[i] << std::endl;

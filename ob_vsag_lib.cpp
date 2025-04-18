@@ -50,14 +50,20 @@ SlowTaskTimer::~SlowTaskTimer() {
 class ObVasgFilter : public vsag::Filter
 {
 public:
-    ObVasgFilter(float valid_ratio, const std::function<bool(int64_t)>& fallback_func) 
-        : valid_ratio_(valid_ratio), fallback_func_(fallback_func) 
+    ObVasgFilter(float valid_ratio,
+                 const std::function<bool(int64_t)>& vid_fallback_func,
+                 const std::function<bool(const char*)>& exinfo_fallback_func) 
+        : valid_ratio_(valid_ratio), vid_fallback_func_(vid_fallback_func), exinfo_fallback_func_(exinfo_fallback_func)
     {};
 
     ~ObVasgFilter() {}
     
     bool CheckValid(int64_t id) const override {
-        return !fallback_func_(id);
+        return !vid_fallback_func_(id);
+    }
+
+    bool CheckValid(const char* data) const override {
+        return !exinfo_fallback_func_(data);
     }
 
     float ValidRatio() const override {
@@ -66,7 +72,8 @@ public:
 
 private:
     float valid_ratio_;
-    std::function<bool(int64_t)> fallback_func_{nullptr};
+    std::function<bool(int64_t)> vid_fallback_func_{nullptr};
+    std::function<bool(const char*)> exinfo_fallback_func_{nullptr};
 };
 
 class HnswIndexHandler
@@ -112,7 +119,7 @@ public:
                 float valid_ratio, int index_type,
                 FilterInterface *bitmap, bool reverse_filter,
                 bool need_extra_info, const char*& extra_infos);
-    int knn_search(const vsag::DatasetPtr& query, int64_t topk,
+  int knn_search(const vsag::DatasetPtr& query, int64_t topk,
                 const std::string& parameters,
                 const float*& dist, const int64_t*& ids, int64_t &result_size,
                 float valid_ratio, int index_type,
@@ -226,15 +233,22 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
     vsag::logger::debug("  search_parameters:{}", parameters);
     vsag::logger::debug("  topk:{}", topk);
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
-    auto filter = [bitmap, reverse_filter](int64_t id) -> bool {
+    auto vid_filter = [bitmap, reverse_filter](int64_t id) -> bool {
         if (!reverse_filter) {
             return bitmap->test(id);
         } else {
             return !(bitmap->test(id));
         }
     };
+    auto exinfo_filter = [bitmap, reverse_filter](const char* data) -> bool {
+        if (!reverse_filter) {
+            return bitmap->test(data);
+        } else {
+            return !(bitmap->test(data));
+        }
+    };
     tl::expected<std::shared_ptr<vsag::Dataset>, vsag::Error> result;
-    auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter);
+    auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, vid_filter, exinfo_filter);
     result = index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter);
     if (result.has_value()) {
         //result的生命周期
@@ -274,8 +288,15 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
             return !(bitmap->test(id));
         }
     };
+    auto exinfo_filter = [bitmap, reverse_filter](const char* data) -> bool {
+        if (!reverse_filter) {
+            return bitmap->test(data);
+        } else {
+            return !(bitmap->test(data));
+        }
+    };
     tl::expected<std::shared_ptr<vsag::Dataset>, vsag::Error> result;
-    auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter);
+    auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter, exinfo_filter);
     vsag::IteratorContext* input_iter = static_cast<vsag::IteratorContext*>(iter_ctx);
     result = index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter, input_iter, is_last_search);
     if (result.has_value()) {
@@ -554,7 +575,7 @@ extern int get_vid_bound(VectorIndexPtr& index_handler, int64_t &min_vid, int64_
 int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                bool need_extra_info, const char*& extra_infos,
-               void* invalid, bool reverse_filter, float valid_ratio) {
+               void* invalid, bool reverse_filter, bool use_extra_info_filter, float valid_ratio) {
     vsag::logger::debug("TRACE LOG[knn_search]:");
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     int ret = 0;
@@ -570,7 +591,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
     const IndexType index_type =static_cast<IndexType>(hnsw->get_index_type());
     if (HNSW_SQ_TYPE == index_type || HNSW_BQ_TYPE == index_type || HGRAPH_TYPE == index_type) {
-        search_parameters = {{"hgraph", {{"ef_search", ef_search}}},};
+        search_parameters = {{"hgraph", {{"ef_search", ef_search}, {"use_extra_info_filter", use_extra_info_filter}}},};
         owner_set = true;
     } else {
         search_parameters = {{"hnsw", {{"ef_search", ef_search}, {"skip_ratio", 0.7f}}},};
@@ -590,7 +611,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
 int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                bool need_extra_info, const char*& extra_infos,
-               void* invalid, bool reverse_filter, float valid_ratio, 
+               void* invalid, bool reverse_filter, bool use_extra_info_filter, float valid_ratio, 
                void *&iter_ctx, bool is_last_search) {
     vsag::logger::debug("TRACE LOG[knn_search]:");
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
@@ -607,7 +628,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
     const IndexType index_type =static_cast<IndexType>(hnsw->get_index_type());
     if (HNSW_SQ_TYPE == index_type || HNSW_BQ_TYPE == index_type || HGRAPH_TYPE == index_type) {
-        search_parameters = {{"hgraph", {{"ef_search", ef_search}}},};
+        search_parameters = {{"hgraph", {{"ef_search", ef_search}, {"use_extra_info_filter", use_extra_info_filter}}},};
         owner_set = true;
     } else {
         search_parameters = {{"hnsw", {{"ef_search", ef_search}, {"skip_ratio", 0.7f}}},};
@@ -937,9 +958,9 @@ extern int get_index_type_c(VectorIndexPtr& index_handler) {
 extern int knn_search_c(VectorIndexPtr& index_handler,float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search, 
                bool need_extra_info, const char*& extra_infos,
-               void* invalid, bool reverse_filter) {
+               void* invalid, bool reverse_filter, bool use_extra_info_filter) {
     return knn_search(index_handler, query_vector, dim, topk, dist, ids, result_size,
-                      ef_search, need_extra_info, extra_infos, invalid, reverse_filter);
+                      ef_search, need_extra_info, extra_infos, invalid, reverse_filter, use_extra_info_filter);
 }
 
 extern int serialize_c(VectorIndexPtr& index_handler, const std::string dir) {
