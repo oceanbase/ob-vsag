@@ -259,10 +259,6 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
         if (need_extra_info) {
             extra_infos = result.value()->GetExtraInfos();
         }
-        // print the results
-        for (int64_t i = 0; i < result_size; ++i) {
-            vsag::logger::debug("  knn search id : {}, distance : {}",ids[i],dist[i]);
-        }
         return 0; 
     } else {
         error = result.error().type;
@@ -307,10 +303,6 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
         result_size = result.value()->GetDim();
         if (need_extra_info) {
             extra_infos = result.value()->GetExtraInfos();
-        }
-        // print the results
-        for (int64_t i = 0; i < result_size; ++i) {
-            vsag::logger::debug("  knn search id : {}, distance : {}",ids[i],dist[i]);
         }
         return 0; 
     } else {
@@ -375,7 +367,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
         vsag::logger::debug("   null pointer addr, dtype:{}, metric:{}", (void*)dtype, (void*)metric);
         return static_cast<int>(vsag::ErrorType::UNKNOWN_ERROR);
     }
-    SlowTaskTimer t("z");
+    // SlowTaskTimer t("z");
     vsag::Allocator* vsag_allocator = NULL;
     bool is_support = is_supported_index(index_type);
     vsag::logger::debug("   index type : {}, is_supported : {}", static_cast<int>(index_type), is_support);
@@ -478,7 +470,7 @@ int build_index(VectorIndexPtr& index_handler, float* vector_list, int64_t* ids,
                                                    (void*)index_handler, (void*)vector_list, (void*)ids);
         return static_cast<int>(error);
     }
-    SlowTaskTimer t("build_index");
+    // SlowTaskTimer t("build_index");
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
     auto dataset = vsag::Dataset::Make();
     dataset->Dim(dim)
@@ -507,7 +499,7 @@ int add_index(VectorIndexPtr& index_handler, float* vector, int64_t* ids, int di
         return static_cast<int>(error);
     }
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
-    SlowTaskTimer t("add_index");
+    // SlowTaskTimer t("add_index");
     // add index
     auto incremental = vsag::Dataset::Make();
     incremental->Dim(dim)
@@ -587,7 +579,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
                                                    (void*)index_handler, (void*)query_vector);
         return static_cast<int>(error);
     }
-    SlowTaskTimer t("knn_search");
+    // SlowTaskTimer t("knn_search");
     FilterInterface *bitmap = static_cast<FilterInterface*>(invalid);
     bool owner_set = false;
     nlohmann::json search_parameters;
@@ -624,7 +616,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
                                                    (void*)index_handler, (void*)query_vector);
         return static_cast<int>(error);
     }
-    SlowTaskTimer t("knn_search");
+    // SlowTaskTimer t("knn_search");
     FilterInterface *bitmap = static_cast<FilterInterface*>(invalid);
     bool owner_set = false;
     nlohmann::json search_parameters;
