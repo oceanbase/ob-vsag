@@ -25,6 +25,7 @@ enum IndexType {
 class FilterInterface {
 public:
   virtual bool test(int64_t id) = 0;
+  virtual bool test(const char* data) = 0;
 };
 /**
  *   * Get the version based on git revision
@@ -68,12 +69,13 @@ extern int get_vid_bound(VectorIndexPtr& index_handler, int64_t &min_vid, int64_
 extern int knn_search(VectorIndexPtr& index_handler,float* query_vector, int dim, int64_t topk,
                       const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                       bool need_extra_info, const char*& extra_infos,
-                      void* invalid, bool reverse_filter, float valid_ratio,
-                      void *&iter_ctx, bool is_last_search = false);
+                      void* invalid, bool reverse_filter, bool use_extra_info_filter,
+                      float valid_ratio, void *&iter_ctx, bool is_last_search = false);
 extern int knn_search(VectorIndexPtr& index_handler,float* query_vector, int dim, int64_t topk,
                       const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                       bool need_extra_info, const char*& extra_infos,
-                      void* invalid = NULL, bool reverse_filter = false, float valid_ratio = 1);
+                      void* invalid = NULL, bool reverse_filter = false,
+                      bool use_extra_info_filter = false, float valid_ratio = 1);
 extern int serialize(VectorIndexPtr& index_handler, const std::string dir);
 extern int deserialize_bin(VectorIndexPtr& index_handler, const std::string dir);
 extern int fserialize(VectorIndexPtr& index_handler, std::ostream& out_stream);
