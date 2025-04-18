@@ -401,27 +401,30 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
     } else if (index_type == HNSW_SQ_TYPE) {
         // create hnsw sq index
         index_type_str = "hgraph";
+        max_degree *= 2;
         nlohmann::json hnswsq_parameters{{"base_quantization_type", "sq8"},
                                          // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
-                                         {"max_degree", max_degree * 2}, 
+                                         {"max_degree", max_degree}, 
                                          {"ef_construction", ef_construction},
                                          {"build_thread_count", 1}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}}; 
     } else if (index_type == HGRAPH_TYPE) {
         // create hnsw fp index
         index_type_str = "hgraph";
+        max_degree *= 2;
         nlohmann::json hnswsq_parameters{{"base_quantization_type", "fp32"},
                                          // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
-                                         {"max_degree", max_degree * 2}, 
+                                         {"max_degree", max_degree}, 
                                          {"ef_construction", ef_construction},
                                          {"build_thread_count", 1}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}}; 
     } else if (index_type == HNSW_BQ_TYPE) {
         // create hnsw bq index
         index_type_str = "hgraph";
+        max_degree *= 2;
         nlohmann::json hnswsq_parameters{{"base_quantization_type", "rabitq"},
                                          // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
-                                         {"max_degree", max_degree * 2}, 
+                                         {"max_degree", max_degree}, 
                                          {"ef_construction", ef_construction},
                                          {"build_thread_count", 1},
                                          {"use_reorder", true},
