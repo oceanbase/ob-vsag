@@ -398,7 +398,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                                          // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
                                          {"max_degree", max_degree}, 
                                          {"ef_construction", ef_construction},
-                                         {"build_thread_count", 1}};
+                                         {"build_thread_count", 0}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}}; 
     } else if (index_type == HGRAPH_TYPE) {
         // create hnsw fp index
@@ -408,7 +408,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                                          // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
                                          {"max_degree", max_degree}, 
                                          {"ef_construction", ef_construction},
-                                         {"build_thread_count", 1}};
+                                         {"build_thread_count", 0}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}}; 
     } else if (index_type == HNSW_BQ_TYPE) {
         // create hnsw bq index
@@ -418,7 +418,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                                          // NOTE(liyao): max_degree compatible with behavior of HNSW, which is doubling the m value 
                                          {"max_degree", max_degree}, 
                                          {"ef_construction", ef_construction},
-                                         {"build_thread_count", 1},
+                                         {"build_thread_count", 0},
                                          {"use_reorder", true},
                                          {"ignore_reorder", true},
                                          {"precise_quantization_type", "fp32"},
@@ -727,13 +727,13 @@ int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream) {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
                                         {"max_degree", max_degree},
                                         {"ef_construction", ef_construction},
-                                        {"build_thread_count", 1}};
+                                        {"build_thread_count", 0}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}};
     } else if (HNSW_BQ_TYPE == index_type) {
         nlohmann::json hnswbq_parameters{{"base_quantization_type", "rabitq"}, 
                                             {"max_degree", max_degree}, 
                                             {"ef_construction", ef_construction},
-                                            {"build_thread_count", 1},
+                                            {"build_thread_count", 0},
                                             {"use_reorder", true},
                                             {"ignore_reorder", true},
                                             {"precise_quantization_type", "fp32"},
@@ -743,7 +743,7 @@ int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream) {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
                                         {"max_degree", max_degree},
                                         {"ef_construction", ef_construction},
-                                        {"build_thread_count", 1}};
+                                        {"build_thread_count", 0}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}};       
     }
 
@@ -829,7 +829,7 @@ int deserialize_bin(VectorIndexPtr& index_handler,const std::string dir) {
         nlohmann::json hnswbq_parameters{{"base_quantization_type", base_quantization_type}, 
                                             {"max_degree", max_degree}, 
                                             {"ef_construction", ef_construction},
-                                            {"build_thread_count", 1},
+                                            {"build_thread_count", 0},
                                             {"extra_info_size", extra_info_size},
                                             {"use_reorder", true},
                                             {"ignore_reorder", true},
@@ -840,7 +840,7 @@ int deserialize_bin(VectorIndexPtr& index_handler,const std::string dir) {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
                                             {"max_degree", max_degree}, 
                                             {"ef_construction", ef_construction},
-                                            {"build_thread_count", 1},
+                                            {"build_thread_count", 0},
                                             {"extra_info_size", extra_info_size}};
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};
     }
