@@ -102,7 +102,7 @@ int64_t example() {
         // std::cout << "calres: " << result_ids[i] << " " << distances[i] << std::endl;
     }
     obvectorlib::delete_index(index_handler);
-    free(test_ptr);
+    default_allocator.Deallocate(test_ptr);
     return 0;
 }
 
@@ -336,18 +336,18 @@ int64_t hnswsq_example() {
         ids2[i] = i + num_vectors*100;
     }
 
-    // const std::string dir = "./";
-    // int ret_serialize_single = obvectorlib::serialize(index_handler,dir);
-    // int ret_deserilize_single_bin = 
-    //                 obvectorlib::deserialize_bin(index_handler,dir);
-    // ret_knn_search = obvectorlib::knn_search(index_handler, query_vector, dim, 10,
-    //                                              result_dist,result_ids,result_size, 
-    //                                              100, r1);
-    // for (int i = 0; i < result_size; i++) {
-    //     std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
-    // }
+    const std::string dir = "./";
+    int ret_serialize_single = obvectorlib::serialize(index_handler,dir);
+    int ret_deserilize_single_bin = 
+                    obvectorlib::deserialize_bin(index_handler,dir);
+    ret_knn_search = obvectorlib::knn_search(index_handler, query_vector, dim, 10,
+                                                 result_dist,result_ids,result_size, 
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter);
+    for (int i = 0; i < result_size; i++) {
+        std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
+    }
     obvectorlib::delete_index(index_handler);
-    free(test_ptr);
+    default_allocator.Deallocate(test_ptr);
     return 0;
 }
 
@@ -451,7 +451,7 @@ int64_t example_extra_info() {
         std::cout << "calres: " << result_ids[i] << " " << distances[i] << std::endl;
     }
     obvectorlib::delete_index(index_handler);
-    free(test_ptr);
+    default_allocator.Deallocate(test_ptr);
     return 0;
 }
 
@@ -560,7 +560,7 @@ int64_t hgraph_iter_filter_example()
     }
     obvectorlib::delete_iter_ctx(iter_ctx);
     obvectorlib::delete_index(index_handler);
-    free(test_ptr);
+    default_allocator.Deallocate(test_ptr);
     return 0;
 }
 
@@ -668,7 +668,7 @@ int64_t hnsw_iter_filter_example()
     }
     obvectorlib::delete_iter_ctx(iter_ctx);
     obvectorlib::delete_index(index_handler);
-    free(test_ptr);
+    default_allocator.Deallocate(test_ptr);
     return 0;
 }
 
@@ -746,8 +746,18 @@ int64_t hnswbq_example() {
     for (int64_t i = 0; i < inc_num; ++i) {
         ids2[i] = i + num_vectors*100;
     }
+    const std::string dir = "./";
+    int ret_serialize_single = obvectorlib::serialize(index_handler,dir);
+    int ret_deserilize_single_bin = 
+                    obvectorlib::deserialize_bin(index_handler,dir);
+    ret_knn_search = obvectorlib::knn_search(index_handler, query_vector, dim, 10,
+                                                 result_dist,result_ids,result_size, 
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter);
+    for (int i = 0; i < result_size; i++) {
+        std::cout << "result: " << result_ids[i] << " " << result_dist[i] << std::endl;
+    }
     obvectorlib::delete_index(index_handler);
-    free(test_ptr);
+    default_allocator.Deallocate(test_ptr);
     return 0;
 }
 
