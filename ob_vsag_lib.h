@@ -59,7 +59,7 @@ extern int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                         const char* dtype,
                         const char* metric,int dim,
                         int max_degree, int ef_construction, int ef_search, void* allocator = NULL,
-                        int extra_info_size = 0);
+                        int extra_info_size = 0, const bool bq_use_rom = true, const bool use_vsag_reorder = false);
 extern int build_index(VectorIndexPtr& index_handler, float* vector_list, int64_t* ids, int dim, int size, char *extra_infos = nullptr);
 extern int add_index(VectorIndexPtr& index_handler, float* vector, int64_t* ids, int dim, int size, char *extra_info = nullptr);
 extern int get_index_number(VectorIndexPtr& index_handler, int64_t &size);
