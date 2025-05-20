@@ -88,13 +88,13 @@ int64_t example() {
     const char *extra_info = nullptr;
     int ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, false, 1);
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, false, nullptr, 1);
     
     roaring64_bitmap_add_range(r1, 0, 19800);
 
     ret_knn_search = obvectorlib::knn_search(index_handler, vectors+dim*(num_vectors-1), dim, 10,
                                                  result_dist,result_ids,result_size, 
-                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, false, 0.01);
+                                                 100, false/*need_extra_info*/, extra_info, &testfilter, false, false, nullptr, 0.01);
     const float *distances;
     // ret_knn_search = obvectorlib::cal_distance_by_id(index_handler, vectors+dim*(num_vectors-1), result_ids, result_size, distances);
     for (int i = 0; i < result_size; i++) {
