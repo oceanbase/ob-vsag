@@ -82,6 +82,7 @@ extern int fserialize(VectorIndexPtr& index_handler, std::ostream& out_stream);
 extern int fdeserialize(VectorIndexPtr& index_handler, std::istream& in_stream);
 extern int delete_index(VectorIndexPtr& index_handler);
 extern void delete_iter_ctx(void *iter_ctx);
+extern uint64_t estimate_memory(VectorIndexPtr& index_handler, uint64_t row_count);
 extern int get_extra_info_by_ids(VectorIndexPtr& index_handler, 
                                 const int64_t* ids, 
                                 int64_t count, 

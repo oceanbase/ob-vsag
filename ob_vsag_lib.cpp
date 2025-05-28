@@ -113,6 +113,7 @@ public:
                             int64_t count, 
                             char *extra_infos);
   int get_vid_bound(int64_t &min_vid, int64_t &max_vid);
+  uint64_t estimate_memory(uint64_t row_count);
   int knn_search(const vsag::DatasetPtr& query, int64_t topk,
                 const std::string& parameters,
                 const float*& dist, const int64_t*& ids, int64_t &result_size,
@@ -222,6 +223,11 @@ int HnswIndexHandler::get_vid_bound(int64_t &min_vid, int64_t &max_vid)
         }
     }
     return static_cast<int>(error);
+}
+
+uint64_t HnswIndexHandler::estimate_memory(uint64_t row_count)
+{
+    return index_->EstimateMemory(row_count);
 }
 
 int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
@@ -904,6 +910,17 @@ int get_extra_info_by_ids(VectorIndexPtr& index_handler,
     return ret;
 }
 
+uint64_t estimate_memory(VectorIndexPtr& index_handler,
+                         uint64_t row_count) {
+    vsag::logger::debug("TRACE LOG[estimate_memory]");
+    uint64_t estimate_memory_size = 0;
+    if (index_handler != nullptr) {
+        HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler); 
+        estimate_memory_size = hnsw->estimate_memory(row_count);
+    }
+    return estimate_memory_size;
+}
+
 int64_t example() {
     return 0;
 }
@@ -975,6 +992,10 @@ extern int fdeserialize_c(VectorIndexPtr& index_handler, std::istream& in_stream
 
 extern int deserialize_bin_c(VectorIndexPtr& index_handler,const std::string dir) {
     return deserialize_bin(index_handler, dir);
+}
+
+extern uint64_t estimate_memory_c(VectorIndexPtr& index_handler, uint64_t row_count) {
+    return estimate_memory(index_handler, row_count);
 }
 
 } //namespace obvectorlib
