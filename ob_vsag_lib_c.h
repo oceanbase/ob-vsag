@@ -79,7 +79,8 @@ extern int fserialize_c(VectorIndexPtr& index_handler, std::ostream& out_stream)
 typedef int (*fdeserialize_ptr)(VectorIndexPtr& index_handler, std::istream& in_stream);
 extern int fdeserialize_c(VectorIndexPtr& index_handler, std::istream& in_stream);
 
-
+typedef uint64_t (*estimate_memory_ptr) (VectorIndexPtr& index_handler, uint64_t row_count);
+extern uint64_t estimate_memory_c(VectorIndexPtr& index_handler, uint64_t row_count);
 
 
 #ifdef __cplusplus
