@@ -364,7 +364,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                  const char* dtype,
                  const char* metric, int dim,
                  int max_degree, int ef_construction, int ef_search, void* allocator,
-                 int extra_info_size/* = 0*/)
+                 int extra_info_size/* = 0*/, const bool bq_use_rom/*=true*/, const bool use_vsag_reorder /*=true*/)
 {   
     vsag::logger::debug("TRACE LOG[create_index]:");
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
@@ -426,7 +426,8 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
                                          {"ef_construction", ef_construction},
                                          {"build_thread_count", 0},
                                          {"use_reorder", true},
-                                         {"ignore_reorder", true},
+                                         {"ignore_reorder", ! use_vsag_reorder},
+                                         {"rabitq_use_rom", bq_use_rom},
                                          {"precise_quantization_type", "fp32"},
                                          {"precise_io_type", "block_memory_io"}}; 
         index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}}; 
@@ -836,19 +837,17 @@ int deserialize_bin(VectorIndexPtr& index_handler,const std::string dir) {
                                             {"max_degree", max_degree}, 
                                             {"ef_construction", ef_construction},
                                             {"build_thread_count", 0},
-                                            {"extra_info_size", extra_info_size},
                                             {"use_reorder", true},
                                             {"ignore_reorder", true},
                                             {"precise_quantization_type", "fp32"},
                                             {"precise_io_type", "block_memory_io"}};
-        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswbq_parameters}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswbq_parameters}};
     } else {
         nlohmann::json hnswsq_parameters{{"base_quantization_type", base_quantization_type},
                                             {"max_degree", max_degree}, 
                                             {"ef_construction", ef_construction},
-                                            {"build_thread_count", 0},
-                                            {"extra_info_size", extra_info_size}};
-        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"index_param", hnswsq_parameters}};
+                                            {"build_thread_count", 0}};
+        index_parameters = {{"dtype", dtype}, {"metric_type", metric}, {"dim", dim}, {"extra_info_size", extra_info_size}, {"index_param", hnswsq_parameters}};
     }
    
     vsag::logger::debug("   Deserilize hnsw index , index parameter:{}, allocator addr:{}",index_parameters.dump(),(void*)hnsw->get_allocator());
