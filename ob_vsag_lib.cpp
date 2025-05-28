@@ -302,7 +302,7 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
     vsag::Allocator* vsag_allocator = nullptr;
     if (allocator != nullptr) vsag_allocator =  static_cast<vsag::Allocator*>(allocator);
     vsag::IteratorContext* input_iter = static_cast<vsag::IteratorContext*>(iter_ctx);
-    vsag::SearchParam search_param(false, parameters, bitmap == nullptr ? nullptr : vsag_filter, vsag_allocator);
+    vsag::SearchParam search_param(true, parameters, bitmap == nullptr ? nullptr : vsag_filter, vsag_allocator, input_iter, is_last_search);
     result = index_->KnnSearch(query, topk, search_param);
     if (result.has_value()) {
         iter_ctx = input_iter;
@@ -390,7 +390,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
     nlohmann::json index_parameters;
     std::string index_type_str;
 
-    if (index_type == HNSW_TYPE) {
+    if (index_type == HNSW_TYPE) { // {"dim":128,"dtype":"abc","hnsw":{"ef_construction":200,"ef_search":200,"max_degree":16,"use_static":false},"metric_type":"l2"}
         // create index
         bool use_static = false;
         index_type_str = "hnsw";
@@ -632,7 +632,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
     nlohmann::json search_parameters;
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
     const IndexType index_type =static_cast<IndexType>(hnsw->get_index_type());
-    if (HNSW_SQ_TYPE == index_type || HNSW_BQ_TYPE == index_type || HGRAPH_TYPE == index_type) {
+    if (HNSW_SQ_TYPE == index_type || HNSW_BQ_TYPE == index_type || HGRAPH_TYPE == index_type) { // {"hgraph":{"ef_search":200,"use_extra_info_filter":true}}
         search_parameters = {{"hgraph", {{"ef_search", ef_search}, {"use_extra_info_filter", use_extra_info_filter}}},};
         owner_set = true;
     } else {
