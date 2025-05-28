@@ -9,6 +9,7 @@
 #include "vsag/bitset.h"
 #include "vsag/allocator.h"
 #include "vsag/factory.h"
+#include "vsag/search_param.h"
 #include "vsag/constants.h"
 #include "vsag/filter.h"
 #include "vsag/iterator_context.h"
@@ -119,14 +120,16 @@ public:
                 const float*& dist, const int64_t*& ids, int64_t &result_size,
                 float valid_ratio, int index_type,
                 FilterInterface *bitmap, bool reverse_filter,
-                bool need_extra_info, const char*& extra_infos);
+                bool need_extra_info, const char*& extra_infos,
+                void *allocator);
   int knn_search(const vsag::DatasetPtr& query, int64_t topk,
                 const std::string& parameters,
                 const float*& dist, const int64_t*& ids, int64_t &result_size,
                 float valid_ratio, int index_type,
                 FilterInterface *bitmap, bool reverse_filter,
                 bool need_extra_info, const char*& extra_infos,
-                void *&iter_ctx, bool is_last_search);
+                void *&iter_ctx, bool is_last_search,
+                void *allocator);
   std::shared_ptr<vsag::Index>& get_index() {return index_;}
   void set_index(std::shared_ptr<vsag::Index> hnsw) {index_ = hnsw;}
   vsag::Allocator* get_allocator() {return allocator_;}
@@ -235,7 +238,7 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size,
                float valid_ratio, int index_type,
                FilterInterface *bitmap, bool reverse_filter,
-               bool need_extra_info, const char*& extra_infos) {
+               bool need_extra_info, const char*& extra_infos, void *allocator) {
     vsag::logger::debug("  search_parameters:{}", parameters);
     vsag::logger::debug("  topk:{}", topk);
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
@@ -255,7 +258,10 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
     };
     tl::expected<std::shared_ptr<vsag::Dataset>, vsag::Error> result;
     auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, vid_filter, exinfo_filter);
-    result = index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter);
+    vsag::Allocator* vsag_allocator = nullptr;
+    if (allocator != nullptr) vsag_allocator =  static_cast<vsag::Allocator*>(allocator);
+    vsag::SearchParam search_param(false, parameters, bitmap == nullptr ? nullptr : vsag_filter, vsag_allocator);
+    result = index_->KnnSearch(query, topk, search_param);
     if (result.has_value()) {
         //result的生命周期
         result.value()->Owner(false);
@@ -279,7 +285,7 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
                float valid_ratio, int index_type,
                FilterInterface *bitmap, bool reverse_filter,
                bool need_extra_info, const char*& extra_infos,
-               void *&iter_ctx, bool is_last_search) {
+               void *&iter_ctx, bool is_last_search, void *allocator) {
     vsag::logger::debug("  search_parameters:{}", parameters);
     vsag::logger::debug("  topk:{}", topk);
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
@@ -299,8 +305,11 @@ int HnswIndexHandler::knn_search(const vsag::DatasetPtr& query, int64_t topk,
     };
     tl::expected<std::shared_ptr<vsag::Dataset>, vsag::Error> result;
     auto vsag_filter = std::make_shared<ObVasgFilter>(valid_ratio, filter, exinfo_filter);
+    vsag::Allocator* vsag_allocator = nullptr;
+    if (allocator != nullptr) vsag_allocator =  static_cast<vsag::Allocator*>(allocator);
     vsag::IteratorContext* input_iter = static_cast<vsag::IteratorContext*>(iter_ctx);
-    result = index_->KnnSearch(query, topk, parameters, bitmap == nullptr ? nullptr : vsag_filter, input_iter, is_last_search);
+    vsag::SearchParam search_param(true, parameters, bitmap == nullptr ? nullptr : vsag_filter, vsag_allocator, input_iter, is_last_search);
+    result = index_->KnnSearch(query, topk, search_param);
     if (result.has_value()) {
         iter_ctx = input_iter;
         result.value()->Owner(false);
@@ -387,7 +396,7 @@ int create_index(VectorIndexPtr& index_handler, IndexType index_type,
     nlohmann::json index_parameters;
     std::string index_type_str;
 
-    if (index_type == HNSW_TYPE) {
+    if (index_type == HNSW_TYPE) { // {"dim":128,"dtype":"abc","hnsw":{"ef_construction":200,"ef_search":200,"max_degree":16,"use_static":false},"metric_type":"l2"}
         // create index
         bool use_static = false;
         index_type_str = "hnsw";
@@ -576,7 +585,8 @@ extern int get_vid_bound(VectorIndexPtr& index_handler, int64_t &min_vid, int64_
 int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                bool need_extra_info, const char*& extra_infos,
-               void* invalid, bool reverse_filter, bool use_extra_info_filter, float valid_ratio) {
+               void* invalid, bool reverse_filter, bool use_extra_info_filter, void *allocator,
+               float valid_ratio) {
     vsag::logger::debug("TRACE LOG[knn_search]:");
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     int ret = 0;
@@ -602,7 +612,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
     ret = hnsw->knn_search(
         query, topk, search_parameters.dump(), dist, ids, result_size, valid_ratio, index_type,
         bitmap, reverse_filter,
-        need_extra_info, extra_infos);
+        need_extra_info, extra_infos, allocator);
     if (ret != 0) {
         vsag::logger::error("   knn search error happend, ret={}", ret);
     }
@@ -612,8 +622,8 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
 int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64_t topk,
                const float*& dist, const int64_t*& ids, int64_t &result_size, int ef_search,
                bool need_extra_info, const char*& extra_infos,
-               void* invalid, bool reverse_filter, bool use_extra_info_filter, float valid_ratio, 
-               void *&iter_ctx, bool is_last_search) {
+               void* invalid, bool reverse_filter, bool use_extra_info_filter,
+               float valid_ratio, void *&iter_ctx, bool is_last_search, void *allocator) {
     vsag::logger::debug("TRACE LOG[knn_search]:");
     vsag::ErrorType error = vsag::ErrorType::UNKNOWN_ERROR;
     int ret = 0;
@@ -628,7 +638,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
     nlohmann::json search_parameters;
     HnswIndexHandler* hnsw = static_cast<HnswIndexHandler*>(index_handler);
     const IndexType index_type =static_cast<IndexType>(hnsw->get_index_type());
-    if (HNSW_SQ_TYPE == index_type || HNSW_BQ_TYPE == index_type || HGRAPH_TYPE == index_type) {
+    if (HNSW_SQ_TYPE == index_type || HNSW_BQ_TYPE == index_type || HGRAPH_TYPE == index_type) { // {"hgraph":{"ef_search":200,"use_extra_info_filter":true}}
         search_parameters = {{"hgraph", {{"ef_search", ef_search}, {"use_extra_info_filter", use_extra_info_filter}}},};
         owner_set = true;
     } else {
@@ -640,7 +650,7 @@ int knn_search(VectorIndexPtr& index_handler, float* query_vector,int dim, int64
         query, topk, search_parameters.dump(), dist, ids, result_size, valid_ratio, index_type,
         bitmap, reverse_filter,
         need_extra_info, extra_infos, 
-        iter_ctx, is_last_search);
+        iter_ctx, is_last_search, allocator);
     if (ret != 0) {
         vsag::logger::error("   knn search error happend, ret={}", ret);
     }
